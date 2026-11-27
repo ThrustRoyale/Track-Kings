@@ -85,7 +85,24 @@ button,.card,.dc{touch-action:manipulation;-webkit-touch-callout:none}
 .row{display:flex;gap:12px}
 .b{width:78px;height:78px;border-radius:50%;background:var(--btn);display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:800;color:var(--fg);border:2px solid var(--btnA);box-sizing:border-box}
 .b.on{background:var(--btnA)}
-.b.big{width:96px;height:96px}
+/* ---- customise buttons: while editing, the touch pad is shown over the menu and every button can be dragged / resized ---- */
+body.editpad .pad{display:flex!important;z-index:30}
+body.editpad :is(#wfB,#wbB){display:flex!important}
+body.editpad :is(.ov,.tb,.spad){display:none!important}
+@media (max-height:520px){body.editpad #pr{display:grid!important}}
+body.editpad .pad .b{cursor:grab;outline:2px dashed rgba(255,255,255,.5);outline-offset:3px}
+body.editpad .pad .b.sel{outline:3px solid #ffb02e;outline-offset:3px}
+#lay{display:none;position:fixed;top:calc(env(safe-area-inset-top,0px) + 8px);left:50%;transform:translateX(-50%);z-index:40;width:min(94vw,460px);box-sizing:border-box;padding:10px 12px;border-radius:16px;background:rgba(14,18,42,.92);border:1px solid rgba(255,255,255,.25);flex-direction:column;gap:7px;text-align:center}
+body.editpad #lay{display:flex}
+#lay b{font-size:13px;letter-spacing:2px}
+#lay small{font-size:11px;opacity:.7}
+#lay label{display:flex;align-items:center;gap:10px;font-size:12px;font-weight:700;text-align:left}
+#lay label span{flex:none;width:92px}
+#lay input[type=range]{flex:1;min-width:0;accent-color:#ffb02e}
+#lay input:disabled{opacity:.35}
+#lay .lr{display:flex;gap:8px;justify-content:center}
+#lay button{flex:1;padding:8px 6px;border-radius:18px;border:2px solid var(--btnA);background:var(--btn);color:var(--fg);font-size:12px;font-weight:800;letter-spacing:1px;cursor:pointer}
+#lay button.pri{background:linear-gradient(90deg,#ff8a3d,#ffb02e);color:#1c2640;border-color:#ffd27a}
 #bst{width:84px;height:84px;position:relative;margin-bottom:4px;border-color:rgba(255,255,255,.5);background:conic-gradient(var(--bc,#ffb02e) calc(var(--p,1)*1turn),rgba(20,24,48,.55) 0)}
 #bst::after{content:"";position:absolute;inset:7px;border-radius:50%;background:#171c3a}
 #bst span{position:relative;z-index:1;font-size:30px}
@@ -97,7 +114,7 @@ button,.card,.dc{touch-action:manipulation;-webkit-touch-callout:none}
   #pr>.row:first-child{grid-column:1;grid-row:1}
   #bst{grid-column:2;grid-row:1;margin-bottom:0}
   #pr>.row:last-child{grid-column:1/span 2;grid-row:2}
-  .b{width:66px;height:66px;font-size:22px}.b.big{width:82px;height:82px}
+  .b{width:66px;height:66px;font-size:22px}
   .b.wb{width:58px;height:58px}#wfB{width:64px;height:64px}#bst{width:74px;height:74px}
   #trk{flex-direction:row;gap:12px;padding:5px 10px}#trk div{gap:6px}
 }
@@ -196,7 +213,7 @@ body.nopad .spad{display:none!important}
 .spad .b{position:absolute;pointer-events:auto}
 .sb{width:62px;height:62px;font-size:22px}
 .sb[data-k=brake]{left:12px;bottom:10px}
-.sb[data-k=gas]{width:76px;height:76px;left:84px;bottom:10px}
+.sb[data-k=gas]{left:84px;bottom:10px}
 .sb[data-k=back]{right:76px;bottom:10px}
 .sb[data-k=fwd]{right:12px;bottom:10px}
 .sb.bs{right:12px;bottom:82px;width:70px;height:70px;border-color:rgba(255,255,255,.5);background:conic-gradient(var(--bc,#ffb02e) calc(var(--p,1)*1turn),rgba(20,24,48,.55) 0)}
@@ -267,7 +284,7 @@ body[data-gk=split][data-m=select] .tb{display:none}
 <div id="dots"></div>
 <button id="pauseBtn" aria-label="Pause">❚❚</button>
 <div id="help">D/→ gas · A/← brake · W/↑ S/↓ rotate · Space boost · E fire · Q fire back · R respawn · Esc pause</div>
-<div class="pad" id="pl"><div class="b" data-k="brake">◀</div><div class="b big" data-k="gas">▶</div></div>
+<div class="pad" id="pl"><div class="b" data-k="brake">◀</div><div class="b" data-k="gas">▶</div></div>
 <div class="pad" id="pr">
   <div class="row"><div class="b wb off" id="wbB" data-k="fireB" aria-label="Fire backward"><svg viewBox="0 0 48 48" aria-hidden="true"><path fill-rule="evenodd" d="M33 3C32 10 36 16 38 23C40 30 38 38 33 42C30 44.5 27 45 24 45C16 45 10 39 10 31C10 25 13 21 17 18C17 22 18.5 25 21 26.5C20 18 25 10 33 3ZM24 41C20 41 17 38 17 34.5C17 31 19 29 21 27.5C21.5 30 23 31.5 25 32C25 28 27 25 30 23C31 26 32 29 32 33C32 37.5 28.5 41 24 41Z"/></svg></div><div class="b wb off" id="wfB" data-k="fireF" aria-label="Fire weapon"><svg viewBox="0 0 48 48" aria-hidden="true"><path fill-rule="evenodd" d="M33 3C32 10 36 16 38 23C40 30 38 38 33 42C30 44.5 27 45 24 45C16 45 10 39 10 31C10 25 13 21 17 18C17 22 18.5 25 21 26.5C20 18 25 10 33 3ZM24 41C20 41 17 38 17 34.5C17 31 19 29 21 27.5C21.5 30 23 31.5 25 32C25 28 27 25 30 23C31 26 32 29 32 33C32 37.5 28.5 41 24 41Z"/></svg><span class="wbadge" id="wBadge"></span></div></div>
   <div class="b" id="bst" data-k="boost"><span>⚡</span></div>
@@ -291,8 +308,13 @@ body[data-gk=split][data-m=select] .tb{display:none}
 <div class="ov sub hide" id="setP"><div class="pn"><h2>SETTINGS</h2>
 <div class="sr"><div>Screen shake<small>Camera shake on impacts</small></div><button class="tg" id="tgShake" role="switch" aria-label="Screen shake"></button></div>
 <div class="sr"><div>Touch controls<small>On-screen buttons while racing</small></div><button class="tg" id="tgPad" role="switch" aria-label="Touch controls"></button></div>
+<div class="sr"><div>Customize buttons<small>Move and resize the on-screen controls</small></div><button class="mini" id="layBtn">EDIT</button></div>
 <div class="sr"><div>Best time<small id="bestS"></small></div><button class="mini" id="rstBest">RESET</button></div>
 <button class="mb pri" data-close>CLOSE</button></div></div>
+<div id="lay"><b>CUSTOMIZE BUTTONS</b><small>Drag a button to move it · tap one to select and resize it</small>
+<label><span>Selected</span><input type="range" id="layS" min="50" max="180" value="100" disabled></label>
+<label><span>All buttons</span><input type="range" id="layG" min="50" max="180" value="100"></label>
+<div class="lr"><button id="layReset">RESET</button><button id="layCancel">CANCEL</button><button class="pri" id="layDone">DONE</button></div></div>
 <div class="ov" id="menu"><div class="pn"><h1>RACER</h1>
 <div class="pane" id="paneMain">
 <p>Loops, ramps, boost pads and weapon crates.<br>Beat 5 rivals to the finish line.</p>
@@ -354,7 +376,7 @@ var touch={gas:0,brake:0,back:0,fwd:0,boost:0,fireF:0,fireB:0},touch1={gas:0,bra
 Array.prototype.forEach.call(document.querySelectorAll(".b"),function(el){
   var k=el.dataset.k,T=el.dataset.p==="1"?touch1:el.dataset.p==="2"?touch2:touch;
   var pid=null;
-  function on(e){e.preventDefault();pid=e.pointerId;try{el.setPointerCapture(pid)}catch(err){}T[k]=1;if(k==="fireF")pendF=1;if(k==="fireB")pendB=1;el.classList.add("on")}
+  function on(e){if(document.body.classList.contains("editpad"))return;e.preventDefault();pid=e.pointerId;try{el.setPointerCapture(pid)}catch(err){}T[k]=1;if(k==="fireF")pendF=1;if(k==="fireB")pendB=1;el.classList.add("on")}
   function off(e){if(e&&pid!==null&&e.pointerId!==pid)return;pid=null;if(e&&e.preventDefault)e.preventDefault();T[k]=0;el.classList.remove("on")}
   el.addEventListener("pointerdown",on);el.addEventListener("pointerup",off);
   el.addEventListener("pointercancel",off);el.addEventListener("lostpointercapture",off);
@@ -576,7 +598,7 @@ function resetMe(){
   applyCar();
   safe=null;safeT=0;place(START_X,groundY(START_X)-32,0);camX=car.x;camY=car.y;zoom=1;zoneIdx=-1;
   finished=false;boostT=0;boostCd=0;flips=0;loopsDone=0;shieldOn=false;gripT=0;spin=0;prevBoost=0;PN={};
-  DM_ME=mkDm();wpn=-1;empT=0;oilT=0;cloakT=0;revT=0;hpMax=CARTY[carTy].hp;hp=hpMax;hpCalm=0;wreckT=0;DV_ME=mkDv(1);ME.t=0;
+  DM_ME=mkDm();wpn=-1;empT=0;oilT=0;cloakT=0;gravT=0;hpMax=CARTY[carTy].hp;hp=hpMax;hpCalm=0;wreckT=0;DV_ME=mkDv(1);ME.t=0;
 }
 function restart(){
   if(NP>1){carTy=selCar2;myPal=pal2(selCar1);ME={col:myPal[1],t:0};resetMe();saveP(1)}
@@ -684,7 +706,7 @@ function step(dt){
   if(gripT>0)gripT=Math.max(0,gripT-dt);
   if(empT>0){empT=Math.max(0,empT-dt);if(boostT>0){boostT=0;boostCd=BCD*.5}}
   if(oilT>0)oilT=Math.max(0,oilT-dt);
-  if(cloakT>0)cloakT=Math.max(0,cloakT-dt);if(revT>0)revT=Math.max(0,revT-dt);
+  if(cloakT>0)cloakT=Math.max(0,cloakT-dt);if(gravT>0){gravT=Math.max(0,gravT-dt);if(!grounded)c.gl=1}   /* anti-gravity: floating racers are not credited with air-time bonuses */
   if(wg)for(var oi=0;oi<OIL.length;oi++){var ol=OIL[oi];if(ol.o!==PID()&&Math.abs(c.x-ol.x)<ol.w/2&&Math.abs(c.y-ol.y)<60&&oilT<=0)zap(PID(),"oil",ol.o)}
   collectPk(c);
   /* boost pads */
@@ -696,7 +718,8 @@ function step(dt){
   if(oilT>0&&grounded)tq+=Math.sin(oilT*24)*3400;   /* fishtail on oil */
   if(!grounded)c.w*=1-Math.min(1,1.2*dt);
   else c.w*=1-Math.min(1,0.8*dt);
-  c.vx+=fx*dt;c.vy+=(fy+G)*dt;
+  c.vx+=fx*dt;c.vy+=(fy+G*(gravT>0?.12:1))*dt;
+  if(gravT>0){c.vy*=1-Math.min(1,1.6*dt);c.vx*=1-Math.min(1,.45*dt)}   /* anti-gravity: drift weightlessly, losing speed */
   c.vx*=1-0.04*dt;
   if(finished)c.vx*=1-Math.min(1,2.5*dt);   /* after the line: brake to a stop right past the gate */
   c.w+=tq/I*dt;
@@ -719,7 +742,8 @@ function step(dt){
     airT+=dt;airAng+=c.w*dt;wasAir=true;
     spin+=c.vx/R*dt*0.1;
   }else if(wasAir){
-    if(airT>0.4){
+    if(c.gl)c.gl=0;
+    else if(airT>0.4){
       var n=Math.round(Math.abs(airAng)/(Math.PI*2)),msg="";
       var clean=wg>0&&Math.cos(c.a)>0.3;  /* clean = landed on the wheels */
       var rel=0;
@@ -1916,12 +1940,12 @@ function dvDraw0(dv,ty,pal){
     else{eyes=1;mouth=0;brow=-.25;dy+=Math.sin((t-2)*3)*.35-.2;hm=2;hand=Math.min(1,Math.max(0,(t-2.1)/.3))*Math.min(1,Math.max(0,(2.95-t)/.3))}
   }
   r*=sc;
-  var hx=W0.hx+dx+lx*3*lw,hy=W0.hy+dy-5*lw,shx=W0.hx+lx*1.4*lw,shy=hy+r*.95,tw=r*1.35,bot=W0.b+lw*6.8+1;
+  var hx=W0.hx+dx+lx*3*lw,hy=W0.hy+dy-5*lw,shx=W0.hx+lx*1.4*lw,shy=hy+r*.95,tw=r*1.35,bot=W0.b+.4;   /* the body ends exactly at the window sill, even when leaning out */
   ctx.save();
   /* clip: just the window opening; leaning out frees the driver to stick out above and beside it */
   ctx.beginPath();
   if(lw<.03){var P=W0.pts;ctx.moveTo(P[0][0],P[0][1]);for(i=1;i<P.length;i++)ctx.lineTo(P[i][0],P[i][1]);ctx.closePath()}
-  else ctx.rect(W0.x0-26*lw-2,W0.t-44*lw-2,W0.x1-W0.x0+52*lw+4,W0.b+lw*6.5+.4-(W0.t-44*lw-2));
+  else ctx.rect(W0.x0-26*lw-2,W0.t-44*lw-2,W0.x1-W0.x0+52*lw+4,W0.b+.4-(W0.t-44*lw-2));
   ctx.clip();
   /* torso (racing suit + seat belt) */
   ctx.fillStyle=pal[2];ctx.beginPath();
@@ -2140,6 +2164,7 @@ function draw(oth){
   if(wpn===2&&!finished&&mode==="race"){var tgt=findAhead(meSrc(),3200);if(tgt)reticle(tgt.x,tgt.y-6,"#ff5a4a")}
   for(var mi=0;mi<PR.length;mi++)if(PR[mi].tg===PID()){reticle(car.x,car.y-6,"rgba(255,70,70,"+(.5+.5*Math.sin(clock*20)).toFixed(2)+")");break}
   if(shieldOn){ctx.strokeStyle="rgba(57,197,255,"+(.65+.25*Math.sin(clock*8)).toFixed(2)+")";ctx.fillStyle="rgba(57,197,255,.14)";ctx.lineWidth=3;ctx.beginPath();ctx.arc(car.x,car.y-6,66,0,7);ctx.fill();ctx.stroke()}
+  if(gravT>0&&wreckT<=0){ctx.strokeStyle="rgba(110,240,194,.7)";ctx.lineWidth=3;ctx.beginPath();ctx.ellipse(car.x,car.y+22,46,8,0,0,7);ctx.stroke()}
   ctx.restore();
 }
 
@@ -2157,7 +2182,7 @@ function initAI(){
   for(i=nm.length-1;i>0;i--){j=Math.floor(Math.random()*(i+1));t=nm[i];nm[i]=nm[j];nm[j]=t}
   for(i=0;i<ROS.length;i++)hs.push((h0+i*72+Math.random()*30)%360);
   for(i=hs.length-1;i>0;i--){j=Math.floor(Math.random()*(i+1));t=hs[i];hs[i]=hs[j];hs[j]=t}
-  AI=ROS.map(function(r,i){var x=START_X,pl=mkPal(Math.round(hs[i]));return {ty:pool[i+1],name:nm[i],pal:pl,col:pl[1],vmax:r*(1+.01*(CARTY[pool[i+1]].s[0]-3)),   /* rivals: only a tiny flavour from top speed, so every car type races at the same level */x:x,y:groundY(x)-AOFF,vx:0,vy:0,a:0,spin:0,pad:0,nitro:0,grip:0,shield:false,stun:0,hz:-1,fin:false,t:0,lp:-1,th:0,wpn:-1,wt:0,emp:0,oil:0,cloak:0,rev:0,hit:0,hitD:1,hpMax:CARTY[pool[i+1]].hp,hp:CARTY[pool[i+1]].hp,calm:0,dv:mkDv(Math.floor(Math.random()*6))}});if((GK==="split"||GK==="pass")&&!BOTS)AI=[];if(typeof updChips==="function")updChips()}
+  AI=ROS.map(function(r,i){var x=START_X,pl=mkPal(Math.round(hs[i]));return {ty:pool[i+1],name:nm[i],pal:pl,col:pl[1],vmax:r*(1+.01*(CARTY[pool[i+1]].s[0]-3)),   /* rivals: only a tiny flavour from top speed, so every car type races at the same level */x:x,y:groundY(x)-AOFF,vx:0,vy:0,a:0,spin:0,pad:0,nitro:0,grip:0,shield:false,stun:0,hz:-1,fin:false,t:0,lp:-1,th:0,wpn:-1,wt:0,emp:0,oil:0,cloak:0,grav:0,hit:0,hitD:1,hpMax:CARTY[pool[i+1]].hp,hp:CARTY[pool[i+1]].hp,calm:0,dv:mkDv(Math.floor(Math.random()*6))}});if((GK==="split"||GK==="pass")&&!BOTS)AI=[];if(typeof updChips==="function")updChips()}
 function updAI(d){
   if(mode!=="race"&&mode!=="done")return;
   RT+=d;
@@ -2174,7 +2199,7 @@ function updAI(d){
     if(a.emp>0){a.emp-=d;tv*=.42;a.nitro=0}
     if(a.oil>0){a.oil-=d;tv*=.5;rate=Math.max(rate,1.6)}
     if(a.cloak>0)a.cloak-=d;
-    if(a.rev>0){a.rev-=d;tv*=.6+.22*Math.sin(clock*7+k*1.7);rate=Math.max(rate,1.5)}   /* reversed controls: they lurch, brake and surge by mistake */
+    if(a.grav>0){a.grav-=d;tv*=.45;rate=Math.min(rate,.6)}   /* anti-gravity: floating, much slower */
     if(a.hit>0){a.hit-=d;tv*=.1;rate=3.5}
     var hr=a.hp/a.hpMax;tv*=.8+.2*hr;rate*=.7+.3*hr;var afx=pfx(a.dm);tv*=afx.top*(1-afx.tyTop*1.5);rate*=afx.acc;
     if(hr<=.5&&!a.fin)dmgSmoke(a.x,a.y,a.a,a.vx,0,hr,d);
@@ -2188,7 +2213,7 @@ function updAI(d){
     }else{
       var ox=a.x;a.x+=a.vx*d;
       for(li=0;li<LOOPS.length;li++)if(ox<LOOPS[li].x&&a.x>=LOOPS[li].x){a.lp=li;a.th=0}
-      a.vy+=G*d;var ny=a.y+a.vy*d,gy=groundY(a.x)-AOFF;
+      a.vy+=G*(a.grav>0?.12:1)*d;if(a.grav>0)a.vy*=1-Math.min(1,1.6*d);var ny=a.y+a.vy*d,gy=groundY(a.x)-AOFF;
       if(ny>=gy){a.y=gy;a.vy=(groundY(a.x+10)-groundY(a.x-10))/20*a.vx;a.a+=(Math.atan2(groundY(a.x+14)-groundY(a.x-14),28)-a.a)*Math.min(1,12*d)}
       else{a.y=ny;a.a+=(Math.atan2(a.vy,a.vx)*.6-a.a)*Math.min(1,2*d)}
       for(q=0;q<HAZ.length;q++){z=HAZ[q];
@@ -2228,14 +2253,15 @@ function drawAI(){
   ctx.textAlign="center";
   for(var k=AI.length-1;k>=0;k--){var a=AI[k];if(a.dead>0)continue;
     ctx.globalAlpha=a.stun>0?.45+.3*Math.sin(clock*30):(a.cloak>0?.28+.1*Math.sin(clock*9):.92);
-    var hu=a.hit>0?1-a.hit/a.hitD:0,big=a.hitD>1,ang=a.a+(a.hit>0?(big?hu*Math.PI*2:Math.sin(hu*Math.PI*6)*.25):0)+(a.oil>0?Math.sin(clock*17)*.32:0)+(a.rev>0?Math.sin(clock*13)*.2:0);
+    var hu=a.hit>0?1-a.hit/a.hitD:0,big=a.hitD>1,ang=a.a+(a.hit>0?(big?hu*Math.PI*2:Math.sin(hu*Math.PI*6)*.25):0)+(a.oil>0?Math.sin(clock*17)*.32:0)+(a.grav>0?Math.sin(clock*3+k)*.12:0);
     drawCar({x:a.x,y:a.y-(a.hit>0&&big?Math.sin(Math.PI*hu)*70:0),a:ang},{ty:a.ty,pal:a.pal,spin:a.spin,br:a.stun>0||a.fin,fl:a.nitro>0?a.nitro/BDUR:(a.pad>0?a.pad/.5:0),dm:a.dm,dv:a.dv});
     ctx.globalAlpha=1;
     if(a.emp>0)sparks(a.x,a.y-6);
     if(a.shield){ctx.strokeStyle="rgba(57,197,255,.7)";ctx.fillStyle="rgba(57,197,255,.12)";ctx.lineWidth=3;ctx.beginPath();ctx.arc(a.x,a.y-6,66,0,7);ctx.fill();ctx.stroke()}
     ctx.fillStyle=a.col;ctx.font="800 14px system-ui,sans-serif";var lo=0;for(var j=0;j<k;j++)if(Math.abs(AI[j].x-a.x)<140)lo++;
     var ny2=a.y-52-lo*16;ctx.fillText(a.name+" · "+CARTY[a.ty].n,a.x,ny2);
-    if(a.rev>0||a.cloak>0)ctx.fillText((a.cloak>0?"👻":"")+(a.rev>0?"🔀":""),a.x,ny2-17);
+    if(a.grav>0){ctx.strokeStyle="rgba(110,240,194,.7)";ctx.lineWidth=3;ctx.beginPath();ctx.ellipse(a.x,a.y+22,46,8,0,0,7);ctx.stroke()}
+    if(a.grav>0||a.cloak>0)ctx.fillText((a.cloak>0?"👻":"")+(a.grav>0?"🛸":""),a.x,ny2-17);
     if(a.hp<a.hpMax&&!a.fin){var hr2=a.hp/a.hpMax,hc=hr2>.5?"#3fd46b":hr2>.25?"#ff9f1c":"#ff3b3b";
       for(var hi2=0;hi2<a.hpMax;hi2++){ctx.fillStyle=hi2<a.hp?hc:"rgba(255,255,255,.2)";rr(a.x-(a.hpMax*9-3)/2+hi2*9,ny2+5,6,8,2);ctx.fill()}}
   }
@@ -2243,11 +2269,11 @@ function drawAI(){
 }
 
 /* ---------- Weapons: 0 EMP blast, 1 oil slick, 2 homing missile, 3 energy cannon, 4 shield, 5 repair kit,
-   6 cloaking (hidden from lock-on / targeting for a while), 7 reverse control (flips every rival's controls for a while) ----------
+   6 cloaking (hidden from lock-on / targeting for a while), 7 anti-gravity (every rival floats helplessly and slow for 2 s) ----------
    Missiles and cannon bolts are projectiles: they can be fired backwards (missiles lose their
    lock when fired backwards) and projectiles from different racers destroy each other. */
-var WN=["EMP BLAST","OIL SLICK","HOMING MISSILE","ENERGY CANNON","SHIELD","REPAIR KIT","CLOAKING","REVERSE CONTROL"],WI=["🌀","🛢️","🚀","☄️","🛡️","🔧","👻","🔀"],WC=["#7fd8ff","#b28cff","#ff5a4a","#5ff7ff","#39c5ff","#ff5c8a","#9fb4ff","#ffd23f"];
-var wpn=-1,empT=0,oilT=0,cloakT=0,revT=0,CLOAKD=7,REVD=5,PR=[],OIL=[],WFX=[],EMPR=520,EMPD=2.4,OILD=1.5,prevFF=0,prevFB=0;
+var WN=["EMP BLAST","OIL SLICK","HOMING MISSILE","ENERGY CANNON","SHIELD","REPAIR KIT","CLOAKING","ANTI-GRAVITY"],WI=["🌀","🛢️","🚀","☄️","🛡️","🔧","👻","🛸"],WC=["#7fd8ff","#b28cff","#ff5a4a","#5ff7ff","#39c5ff","#ff5c8a","#9fb4ff","#6ef0c2"];
+var wpn=-1,empT=0,oilT=0,cloakT=0,gravT=0,CLOAKD=7,GRAVD=2,PR=[],OIL=[],WFX=[],EMPR=520,EMPD=2.4,OILD=1.5,prevFF=0,prevFB=0;
 function meSrc(){return {id:PID(),x:car.x,y:car.y,vx:car.vx,vy:car.vy,a:car.a}}
 /* cloaked racers are invisible to targeting: no missile lock, no reticle, rivals do not aim at them */
 function isCloaked(id){
@@ -2291,25 +2317,25 @@ function zapHum(id,kind,src){
     if(kind!=="oil"&&shieldOn){shieldOn=false;WFX.push({k:2,x:car.x,y:car.y-6,t:clock,c:"#39c5ff",r:80});showFlip("SHIELD BLOCKED IT");if(isHum(src))flipBy(src,hName(id)+"'S SHIELD BLOCKED");if(kind==="missile")dvDodge(id);return false}
     if(kind==="emp"){empT=EMPD;if(boostT>0){boostT=0;boostCd=BCD*.5}showFlip("EMP! SYSTEMS DOWN");hurt(1)}
     else if(kind==="oil"){if(oilT<=0)showFlip("OIL SLICK!");oilT=OILD}
-    else if(kind==="rev"){revT=REVD;showFlip("🔀 CONTROLS REVERSED!")}
+    else if(kind==="grav"){gravT=GRAVD;car.vy=Math.min(car.vy,0)-420;showFlip("🛸 ANTI-GRAVITY! FLOATING")}
     else if(kind==="missile"){car.vx*=.3;car.vy=Math.min(car.vy*.3,-420);car.w+=(Math.random()<.5?-1:1)*6;shake=16;showFlip("MISSILE HIT! -2 HP");hurt(2);dvCrash(DV_ME)}
     else{car.vx*=.6;car.vy-=200;car.w+=(Math.random()-.5)*5;shake=8;showFlip("ZAPPED! -1 HP");hurt(1)}
-    if(isHum(src)&&src!==id){if(wreckT>0)flipBy(src,"💀 WRECKED "+hName(id)+"!");else if(kind==="oil")flipBy(src,hName(id)+" SLIPPED!");else if(kind!=="emp"&&kind!=="rev")flipBy(src,"💥 HIT "+hName(id)+"!")}
+    if(isHum(src)&&src!==id){if(wreckT>0)flipBy(src,"💀 WRECKED "+hName(id)+"!");else if(kind==="oil")flipBy(src,hName(id)+" SLIPPED!");else if(kind!=="emp"&&kind!=="grav")flipBy(src,"💥 HIT "+hName(id)+"!")}
     dvHit(src,id,kind,wreckT>0);return true;
   }
 }
 function zapAI(id,kind,src){
   var a=AI[id];if(!a||a.fin||a.dead>0)return false;
   if(kind!=="oil"&&a.shield){a.shield=false;WFX.push({k:2,x:a.x,y:a.y-6,t:clock,c:"#39c5ff",r:80});if(isHum(src))flipBy(src,a.name.toUpperCase()+"'S SHIELD BLOCKED");if(kind==="missile")dvDodge(id);return false}
-  var dm=kind==="missile"?2:(kind==="oil"||kind==="rev")?0:1;
+  var dm=kind==="missile"?2:(kind==="oil"||kind==="grav")?0:1;
   if(dm&&CARTY[a.ty].arm){dm=Math.max(0,dm-CARTY[a.ty].arm);if(!dm&&isHum(src))flipBy(src,"🛡 "+a.name.toUpperCase()+"'S ARMOUR HELD")}
   if(kind==="emp"){a.emp=EMPD;a.nitro=0}
   else if(kind==="oil"){if(a.oil<=0&&isHum(src))flipBy(src,a.name.toUpperCase()+" SLIPPED!");a.oil=OILD+.3}
-  else if(kind==="rev"){a.rev=REVD}
+  else if(kind==="grav"){a.grav=GRAVD;if(a.lp<0)a.vy=-420}
   else if(kind==="missile"){a.hit=1.4;a.hitD=1.4;dvCrash(a.dv)}
   else{a.hit=.7;a.hitD=.7}
-  if(dm){a.hp=Math.max(0,a.hp-dm);if(a.hp<=0){blowUp(a.x,a.y-6);a.dead=WRECK;a.hit=a.emp=a.oil=a.nitro=a.rev=a.cloak=0;a.vx=0;if(isHum(src))flipBy(src,"💀 WRECKED "+a.name.toUpperCase()+"!");dvHit(src,id,kind,true);return true}}
-  if(isHum(src)&&kind!=="oil"&&kind!=="emp"&&kind!=="rev")flipBy(src,"💥 HIT "+a.name.toUpperCase()+"!");
+  if(dm){a.hp=Math.max(0,a.hp-dm);if(a.hp<=0){blowUp(a.x,a.y-6);a.dead=WRECK;a.hit=a.emp=a.oil=a.nitro=a.grav=a.cloak=0;a.vx=0;if(isHum(src))flipBy(src,"💀 WRECKED "+a.name.toUpperCase()+"!");dvHit(src,id,kind,true);return true}}
+  if(isHum(src)&&kind!=="oil"&&kind!=="emp"&&kind!=="grav")flipBy(src,"💥 HIT "+a.name.toUpperCase()+"!");
   dvHit(src,id,kind,false);
   return true;
 }
@@ -2341,9 +2367,9 @@ function fire(src,w,back){
     flipBy(src.id,"👻 CLOAKED · HIDDEN FROM LOCK-ON");
   }else if(w===7){
     var L7=racers(),n7=0,j7;
-    for(j7=0;j7<L7.length;j7++)if(L7[j7].id!==src.id&&zap(L7[j7].id,"rev",src.id))n7++;
-    WFX.push({k:2,x:src.x,y:src.y-6,t:clock,c:"#ffd23f",r:110});
-    flipBy(src.id,n7?"🔀 CONTROLS REVERSED · "+n7+" RIVAL"+(n7>1?"S":""):"🔀 NO ONE TO REVERSE");
+    for(j7=0;j7<L7.length;j7++)if(L7[j7].id!==src.id&&zap(L7[j7].id,"grav",src.id))n7++;
+    WFX.push({k:2,x:src.x,y:src.y-6,t:clock,c:"#6ef0c2",r:110});
+    flipBy(src.id,n7?"🛸 ANTI-GRAVITY · "+n7+" RIVAL"+(n7>1?"S":"")+" FLOATING":"🛸 NO ONE TO FLOAT");
   }else{
     PR.push({k:3,x:sx,y:sy,vx:dx*3300+src.vx,vy:dy*3300+src.vy,o:src.id,tg:null,age:0,life:1.3});
   }
@@ -2351,7 +2377,7 @@ function fire(src,w,back){
 function useW(back){
   if(wpn<0)return;
   if(empT>0){showFlip("EMP — WEAPONS OFFLINE");return}
-  if(wpn===5&&hp>=hpMax){flipBy(meSrc().id,"HEALTH ALREADY FULL");return}
+  if(wpn===5&&hp>=hpMax){flipBy(meSrc().id,"🔧 HEALTH FULL · KIT USED UP");wpn=-1;return}   /* still consumed, so the slot frees up for a new powerup */
   fire(meSrc(),wpn,back);wpn=-1;
 }
 function aiW(a,k,d){
@@ -2526,9 +2552,20 @@ cardsEl.innerHTML=CARTY.map(function(t,i){
 /* ---- car colours: option 0 is each car's original paint, then a shared set ---- */
 function mkNeu(l){return ["hsl(220,10%,"+Math.min(97,l+26)+"%)","hsl(220,8%,"+l+"%)","hsl(220,10%,"+Math.max(6,l-26)+"%)","hsla(220,12%,"+Math.max(4,l-40)+"%,.7)"]}
 var COLS=[{n:"Red",p:mkPal(0)},{n:"Orange",p:mkPal(28)},{n:"Yellow",p:mkPal(50)},{n:"Lime",p:mkPal(95)},{n:"Green",p:mkPal(140)},{n:"Teal",p:mkPal(175)},
-  {n:"Sky",p:mkPal(198)},{n:"Blue",p:mkPal(222)},{n:"Purple",p:mkPal(275)},{n:"Pink",p:mkPal(322)},{n:"Silver",p:mkNeu(74)},{n:"Graphite",p:mkNeu(34)}];
+  {n:"Sky",p:mkPal(198)},{n:"Blue",p:mkPal(222)},{n:"Indigo",p:mkPal(256)},{n:"Purple",p:mkPal(275)},{n:"Magenta",p:mkPal(300)},{n:"Pink",p:mkPal(322)},
+  {n:"Maroon",p:["hsl(0,58%,50%)","hsl(0,65%,28%)","hsl(0,70%,15%)","hsla(0,75%,8%,.7)"]},
+  {n:"Brown",p:["hsl(25,52%,60%)","hsl(25,55%,34%)","hsl(25,60%,18%)","hsla(25,65%,10%,.7)"]},
+  {n:"Olive",p:["hsl(68,48%,58%)","hsl(68,52%,32%)","hsl(68,56%,17%)","hsla(68,60%,9%,.7)"]},
+  {n:"Navy",p:["hsl(225,60%,50%)","hsl(225,70%,24%)","hsl(225,75%,12%)","hsla(225,80%,7%,.7)"]},
+  {n:"White",p:mkNeu(84)},{n:"Silver",p:mkNeu(66)},{n:"Graphite",p:mkNeu(36)},{n:"Black",p:mkNeu(14)}];
 var DEFPAL=CARTY.map(function(t){return t.pal}),carCol=CARTY.map(function(){return 0});
-try{var cc=JSON.parse(localStorage.getItem("racerColors")||"[]");cc.forEach(function(v,i){if(i<CARTY.length&&v>=0&&v<=COLS.length)carCol[i]=v})}catch(e){}
+/* saved colours are stored as indices; older saves used a longer list, so translate them by name (removed look-alikes map to their nearest neighbour) */
+var OLDCOLS=["Red","Orange","Yellow","Lime","Green","Teal","Sky","Blue","Purple","Pink","Silver","Graphite","White","Black","Coral","Gold","Mint","Cyan","Navy","Indigo","Magenta","Rose","Maroon","Brown","Olive","Bronze"],
+    NEARC={Coral:"Red",Gold:"Yellow",Mint:"Green",Cyan:"Sky",Rose:"Pink",Bronze:"Brown"};
+function newColIdx(v){if(!v)return 0;var n=OLDCOLS[v-1];n=NEARC[n]||n;for(var k=0;k<COLS.length;k++)if(COLS[k].n===n)return k+1;return 0}
+try{var cc=JSON.parse(localStorage.getItem("racerColors")||"[]"),mig=localStorage.getItem("racerColorsV")!=="2";
+  cc.forEach(function(v,i){if(i<CARTY.length&&v>=0&&v<=(mig?OLDCOLS.length:COLS.length))carCol[i]=mig?newColIdx(v):v});
+  if(mig)localStorage.setItem("racerColors",JSON.stringify(carCol));localStorage.setItem("racerColorsV","2")}catch(e){}
 function palOf(i,v){return v?COLS[v-1].p:DEFPAL[i]}
 function drawCard(el,i){
   var cv2=el.querySelector("canvas"),c2=cv2.getContext("2d"),main=ctx;
@@ -2620,14 +2657,14 @@ function PID(){return cp===1?"p2":"me"}
 function curPal(){return myPal||CARTY[carTy].pal}
 function saveP(i){
   PSN[i]={car:car,spin:spin,airT:airT,airAng:airAng,wasAir:wasAir,flips:flips,stuckT:stuckT,loopsDone:loopsDone,boostT:boostT,boostCd:boostCd,padT:padT,
-    safe:safe,safeT:safeT,shieldOn:shieldOn,gripT:gripT,hp:hp,hpMax:hpMax,hpCalm:hpCalm,wreckT:wreckT,DM_ME:DM_ME,DV_ME:DV_ME,empT:empT,oilT:oilT,cloakT:cloakT,revT:revT,wpn:wpn,
+    safe:safe,safeT:safeT,shieldOn:shieldOn,gripT:gripT,hp:hp,hpMax:hpMax,hpCalm:hpCalm,wreckT:wreckT,DM_ME:DM_ME,DV_ME:DV_ME,empT:empT,oilT:oilT,cloakT:cloakT,gravT:gravT,wpn:wpn,
     LS:LS.slice(),carTy:carTy,PT:PT,PA:PA,PG:PG,PB:PB,camX:camX,camY:camY,zoom:zoom,finished:finished,ME:ME,prevBoost:prevBoost,PN:PN,myPal:myPal,zoneIdx:zoneIdx};
 }
 function loadP(i){
   var p=PSN[i],k;if(!p)return;cp=i;
   car=p.car;spin=p.spin;airT=p.airT;airAng=p.airAng;wasAir=p.wasAir;flips=p.flips;stuckT=p.stuckT;loopsDone=p.loopsDone;
   boostT=p.boostT;boostCd=p.boostCd;padT=p.padT;safe=p.safe;safeT=p.safeT;shieldOn=p.shieldOn;gripT=p.gripT;
-  hp=p.hp;hpMax=p.hpMax;hpCalm=p.hpCalm;wreckT=p.wreckT;DM_ME=p.DM_ME;DV_ME=p.DV_ME;empT=p.empT;oilT=p.oilT;cloakT=p.cloakT||0;revT=p.revT||0;wpn=p.wpn;
+  hp=p.hp;hpMax=p.hpMax;hpCalm=p.hpCalm;wreckT=p.wreckT;DM_ME=p.DM_ME;DV_ME=p.DV_ME;empT=p.empT;oilT=p.oilT;cloakT=p.cloakT||0;gravT=p.gravT||0;wpn=p.wpn;
   for(k=0;k<LS.length;k++)LS[k]=p.LS[k];
   carTy=p.carTy;PT=p.PT;PA=p.PA;PG=p.PG;PB=p.PB;camX=p.camX;camY=p.camY;zoom=p.zoom;finished=p.finished;ME=p.ME;prevBoost=p.prevBoost;PN=p.PN;myPal=p.myPal;zoneIdx=p.zoneIdx;
 }
@@ -2642,7 +2679,6 @@ function pal2(c1){var t=palP(2),a=hueOf(palP(1)),b=hueOf(t),d=Math.abs(a-b);d=Ma
 function gateIn(k){
   if(mode==="done"||finished){k.gas=0;k.brake=1;k.boost=0;k.fireF=k.fireB=0}
   else if(mode!=="race"||paused){k.gas=k.brake=k.back=k.fwd=k.boost=k.fireF=k.fireB=0}
-  else if(revT>0){var t0=k.gas;k.gas=k.brake;k.brake=t0;t0=k.back;k.back=k.fwd;k.fwd=t0}   /* reverse control: throttle<->brake, tilt back<->forward */
 }
 function boostEdge(){
   if(K.boost&&!prevBoost&&boostT<=0&&boostCd<=0){if(empT>0)showFlip("EMP — BOOST OFFLINE");else boostT=BDUR}
@@ -2720,7 +2756,7 @@ function hudSplit(v,w,h){
     ctx.fillStyle="rgba(10,14,36,.6)";rr(8,80,150,28,10);ctx.fill();ctx.strokeStyle=WC[wpn];ctx.lineWidth=2;rr(8,80,150,28,10);ctx.stroke();
     ctx.textAlign="left";ctx.fillStyle=empT>0?"rgba(255,255,255,.45)":"#fff";ctx.font="800 13px system-ui,sans-serif";ctx.fillText(WI[wpn]+" "+(empT>0?"OFFLINE":WN[wpn]),16,99);ctx.textAlign="center";
   }
-  if(cloakT>0||revT>0){ctx.textAlign="left";ctx.font="800 12px system-ui,sans-serif";ctx.fillStyle=cloakT>0?"#9fb4ff":"#ffd23f";sTxt((cloakT>0?"👻 CLOAKED "+Math.ceil(cloakT)+"s  ":"")+(revT>0?"🔀 REVERSED "+Math.ceil(revT)+"s":""),10,126);ctx.textAlign="center"}
+  if(cloakT>0||gravT>0){ctx.textAlign="left";ctx.font="800 12px system-ui,sans-serif";ctx.fillStyle=cloakT>0?"#9fb4ff":"#6ef0c2";sTxt((cloakT>0?"👻 CLOAKED "+Math.ceil(cloakT)+"s  ":"")+(gravT>0?"🛸 FLOATING "+Math.ceil(gravT)+"s":""),10,126);ctx.textAlign="center"}
   for(i=0;i<PR.length;i++)if(PR[i].tg===PID()){ctx.globalAlpha=.55+.45*Math.sin(clock*14);ctx.fillStyle="#ff5a4a";ctx.font="900 14px system-ui,sans-serif";sTxt("⚠ MISSILE LOCKED ON"+(shieldOn?" · SHIELD UP":(wpn===2||wpn===3)?" · FIRE BACK":""),cx,124);ctx.globalAlpha=1;break}
   fs=Math.round(Math.max(15,Math.min(22,w/34)));
   m=FM[v];
@@ -2905,10 +2941,10 @@ function loop(t){
   hTime.textContent=fmt(raceT);hDist.textContent=Math.round(dist)+" / "+(FIN/50)+" m";
   hSpd.textContent=sp;dialEl.style.setProperty("--sp",Math.min(1,sp/200).toFixed(3));dialEl.style.setProperty("--sc",(boostT>0||padT>0)?"#ffb02e":"#39c5ff");
   hAir.textContent=airT.toFixed(1)+"s";
-  var pkH=(shieldOn?'<span style="color:#39c5ff">🛡 SHIELD</span>':"")+(gripT>0?'<span style="color:#5bc45e">GRIP '+Math.ceil(gripT)+"s</span>":"")+(empT>0?'<span style="color:#7fd8ff">EMP · SYSTEMS DOWN '+Math.ceil(empT)+"s</span>":"")+(oilT>0?'<span style="color:#b28cff">OILED · NO GRIP</span>':"")+(cloakT>0?'<span style="color:#9fb4ff">👻 CLOAKED '+Math.ceil(cloakT)+"s</span>":"")+(revT>0?'<span style="color:#ffd23f">🔀 CONTROLS REVERSED '+Math.ceil(revT)+"s</span>":"");
+  var pkH=(shieldOn?'<span style="color:#39c5ff">🛡 SHIELD</span>':"")+(gripT>0?'<span style="color:#5bc45e">GRIP '+Math.ceil(gripT)+"s</span>":"")+(empT>0?'<span style="color:#7fd8ff">EMP · SYSTEMS DOWN '+Math.ceil(empT)+"s</span>":"")+(oilT>0?'<span style="color:#b28cff">OILED · NO GRIP</span>':"")+(cloakT>0?'<span style="color:#9fb4ff">👻 CLOAKED '+Math.ceil(cloakT)+"s</span>":"")+(gravT>0?'<span style="color:#6ef0c2">🛸 ANTI-GRAVITY · FLOATING '+Math.ceil(gravT)+"s</span>":"");
   var wk=wpn+"|"+(empT>0);if(wk!==wLast){wLast=wk;var has=wpn>=0;wpnEl.className="hud "+(has?"has":"none");wpnEl.style.setProperty("--wc",has?WC[wpn]:"#fff");
     $("wpnI").textContent=has?WI[wpn]:"·";$("wpnN").textContent=has?WN[wpn]:"EMPTY";
-    $("wpnH").textContent=!has?"grab a ? crate":empT>0?"offline (EMP)":wpn===0?"E / Q blast around you":wpn===1?"E / Q drop behind":wpn===2?"E lock-on · Q rear (no lock)":wpn===4?"E / Q raise shield":wpn===5?"E / Q repair your car":wpn===6?"E / Q vanish from lock-on":wpn===7?"E / Q reverse rivals' controls":"E fire · Q fire back";
+    $("wpnH").textContent=!has?"grab a ? crate":empT>0?"offline (EMP)":wpn===0?"E / Q blast around you":wpn===1?"E / Q drop behind":wpn===2?"E lock-on · Q rear (no lock)":wpn===4?"E / Q raise shield":wpn===5?"E / Q repair your car":wpn===6?"E / Q vanish from lock-on":wpn===7?"E / Q float all rivals for 2s":"E fire · Q fire back";
     $("wBadge").textContent=has?WI[wpn]:"";wfB.classList.toggle("off",!has||empT>0);wbB.classList.toggle("off",!has||empT>0)}if(pkH!==pkLast){pkLast=pkH;$("pk").innerHTML=pkH}hFlip.textContent=flips;hLoop.textContent=loopsDone;
   requestAnimationFrame(loop);
 }
@@ -2927,6 +2963,73 @@ Array.prototype.forEach.call(document.querySelectorAll("[data-close]"),function(
 [$("ctlP"),$("setP")].forEach(function(o){o.addEventListener("click",function(e){if(e.target===o)closeSubs()})});
 addEventListener("keydown",function(e){if(e.code==="Escape")closeSubs()});
 applyCfg();
+
+/* ---------- customise on-screen buttons: drag to move, sliders to resize; saved on this device ---------- */
+var LAY={g:1,b:{}},LAYK="racerLay",PADB=Array.prototype.slice.call(document.querySelectorAll(".pad .b[data-k]")),layEdit=false,layDirty=false,layReset=false,laySel=null,layBak=null;
+try{var lj=JSON.parse(localStorage.getItem(LAYK)||"null");if(lj&&typeof lj==="object"){LAY.g=+lj.g||1;LAY.b=lj.b||{}}}catch(e){}
+function applyLay(){
+  var g=LAY.g||1;
+  PADB.forEach(function(el){
+    var o=LAY.b[el.dataset.k],st=el.style;
+    if(o){st.position="fixed";st.left=(o.x*100).toFixed(2)+"%";st.top=(o.y*100).toFixed(2)+"%";st.margin="0";st.translate="-50% -50%";st.scale=String(g*(o.s||1))}
+    else{st.position="";st.left="";st.top="";st.margin="";st.translate="";st.scale=g!==1?String(g):""}
+  });
+}
+function layGrab(){   /* pin every button where it currently sits, so moving one never shoves the others around */
+  PADB.forEach(function(el){
+    var k=el.dataset.k;if(LAY.b[k])return;
+    var r=el.getBoundingClientRect();
+    LAY.b[k]={x:(r.left+r.width/2)/innerWidth,y:(r.top+r.height/2)/innerHeight,s:1};
+  });
+  applyLay();
+}
+function laySync(){
+  var S=$("layS"),G=$("layG");
+  PADB.forEach(function(el){el.classList.toggle("sel",el.dataset.k===laySel)});
+  S.disabled=!laySel;S.value=laySel&&LAY.b[laySel]?Math.round((LAY.b[laySel].s||1)*100):100;
+  G.value=Math.round((LAY.g||1)*100);
+}
+function layStart(){
+  closeSubs();layBak=JSON.stringify(LAY);layDirty=false;layReset=false;laySel=null;layEdit=true;
+  document.body.classList.add("editpad");applyLay();layGrab();laySync();
+}
+function layEnd(save){
+  var done=layEdit;layEdit=false;laySel=null;
+  document.body.classList.remove("editpad");
+  PADB.forEach(function(el){el.classList.remove("sel")});
+  if(!done)return;
+  if(save&&layDirty){/* keep the new layout */}
+  else if(save&&layReset){LAY={g:1,b:{}}}
+  else{var o=JSON.parse(layBak);LAY={g:+o.g||1,b:o.b||{}}}
+  try{localStorage.setItem(LAYK,JSON.stringify(LAY))}catch(e){}
+  applyLay();openSub("setP");
+}
+PADB.forEach(function(el){
+  var pid=null,ox=0,oy=0,k=el.dataset.k;
+  el.addEventListener("pointerdown",function(e){
+    if(!layEdit)return;
+    e.preventDefault();pid=e.pointerId;try{el.setPointerCapture(pid)}catch(err){}
+    var r=el.getBoundingClientRect();ox=e.clientX-(r.left+r.width/2);oy=e.clientY-(r.top+r.height/2);
+    laySel=k;laySync();
+  });
+  el.addEventListener("pointermove",function(e){
+    if(!layEdit||pid!==e.pointerId||!LAY.b[k])return;
+    LAY.b[k].x=Math.max(.04,Math.min(.96,(e.clientX-ox)/innerWidth));
+    LAY.b[k].y=Math.max(.06,Math.min(.96,(e.clientY-oy)/innerHeight));
+    layDirty=true;applyLay();
+  });
+  function up(e){if(pid!==null&&e.pointerId===pid)pid=null}
+  el.addEventListener("pointerup",up);el.addEventListener("pointercancel",up);el.addEventListener("lostpointercapture",up);
+});
+$("layS").addEventListener("input",function(){if(!laySel||!LAY.b[laySel])return;LAY.b[laySel].s=this.value/100;layDirty=true;applyLay()});
+$("layG").addEventListener("input",function(){LAY.g=this.value/100;layDirty=true;applyLay()});
+$("layReset").onclick=function(){LAY={g:1,b:{}};layDirty=false;layReset=true;laySel=null;applyLay();layGrab();laySync()};
+$("layCancel").onclick=function(){layEnd(false)};
+$("layDone").onclick=function(){layEnd(true)};
+$("layBtn").onclick=layStart;
+addEventListener("keydown",function(e){if(layEdit&&e.code==="Escape")layEnd(false)});
+applyLay();
+
 toMenu();
 requestAnimationFrame(loop);
 })();
