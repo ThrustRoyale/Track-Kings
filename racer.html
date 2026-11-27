@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -19,7 +19,7 @@ canvas{display:block;width:100%;height:100%}
 html{-webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent}
 button,.card,.dc{touch-action:manipulation;-webkit-touch-callout:none}
 .b{touch-action:none;-webkit-touch-callout:none;-webkit-user-select:none}
-.ov{touch-action:pan-y;-webkit-overflow-scrolling:touch}
+.ov{touch-action:manipulation;-webkit-overflow-scrolling:touch}
 .hud{position:fixed;pointer-events:none;color:var(--fg);text-shadow:0 1px 3px rgba(0,0,0,.6)}
 .hud small{display:block;font-size:10px;font-weight:800;letter-spacing:2px;opacity:.7}
 #pos,#tbox,#trk{background:rgba(10,14,36,.55);border:1px solid rgba(255,255,255,.18);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
@@ -128,7 +128,7 @@ button,.card,.dc{touch-action:manipulation;-webkit-touch-callout:none}
 #st div.me{background:rgba(255,176,46,.25);font-weight:800}
 #st span{flex:1}
 .pn.wide{max-width:820px}
-#select{align-items:flex-start;touch-action:pan-y}
+#select{align-items:flex-start;touch-action:manipulation}
 #select .pn{margin:auto}
 .cards{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;width:100%}
 .card{position:relative;width:150px;padding:8px;border-radius:14px;border:2px solid transparent;background:rgba(255,255,255,.1);text-align:left;cursor:pointer;box-sizing:border-box}
@@ -182,7 +182,8 @@ body.nopad .pad{display:none}
 .cnt .mb.sel{background:linear-gradient(90deg,#ff8a3d,#ffb02e);color:#1c2640;border-color:#ffd27a}
 .mhint{font-size:12px;line-height:1.7;opacity:.85}
 .mhint b{color:#ffb02e}
-body:not([data-gk=single]) :is(#wpn,#wfB,#wbB){display:none}
+body:not([data-gk=single]):not([data-gk=pass]) :is(#wpn,#wfB,#wbB){display:none}
+body[data-gk=pass][data-bots="0"] :is(#wpn,#wfB,#wbB){display:none}
 body[data-gk=split] :is(.pad,.hud,#hp,#bar,#dots,#help,#warn,#zone,#flip){display:none}
 body[data-gk=split] #pauseBtn{top:50%;transform:translate(-50%,-50%)}
 body[data-gk=split] #msg{display:none}
@@ -298,9 +299,11 @@ body[data-gk=split][data-m=select] .tb{display:none}
 <div class="cnt yn"><button class="mb pri" id="botsY">YES<small>race 5 rivals</small></button><button class="mb pri" id="botsN">NO<small>just you two</small></button></div>
 <button class="mb" id="splitBack">BACK</button></div>
 <div class="pane hide" id="panePass"><h2>PASS &amp; PLAY</h2>
-<p>Everyone drives the same track on this device, one after another.<br>Fastest time wins. Weapons are off.</p>
+<p>Everyone drives the same track on this device, one after another.<br>Fastest time wins.</p>
 <p>How many players?</p>
 <div class="cnt"><button class="mb sel" data-n="2">2</button><button class="mb" data-n="3">3</button><button class="mb" data-n="4">4</button></div>
+<p>Play with bots?</p>
+<div class="cnt yn bt"><button class="mb sel" data-b="1">YES<small>race 5 rivals + weapons</small></button><button class="mb" data-b="0">NO<small>just you</small></button></div>
 <button class="mb pri" id="passGo">START</button><button class="mb" id="passBack">BACK</button></div>
 </div></div>
 <div class="ov hide" id="select"><div class="pn wide"><h2 id="selT">CHOOSE YOUR CAR</h2>
@@ -481,7 +484,7 @@ function takePk(p){
   else if(p.t===3){wpn=Math.floor(Math.random()*4);showFlip(WI[wpn]+" "+WN[wpn])}
   else{hp=hpMax;showFlip("🔧 CAR REPAIRED")}
 }
-function collectPk(c){for(var k=0;k<PK.length;k++){var p=PK[k];if(p.t===3&&(wpn>=0||GK==="pass")||p.t===4&&hp>=hpMax)continue;if(nearPk(p,c)&&claimPk(p,PID()))takePk(p)}}
+function collectPk(c){for(var k=0;k<PK.length;k++){var p=PK[k];if(p.t===3&&(wpn>=0||(GK==="pass"&&!BOTS))||p.t===4&&hp>=hpMax)continue;if(nearPk(p,c)&&claimPk(p,PID()))takePk(p)}}
 /* rivals: nitro = burst of speed, grip = quicker pickup and better climbing, shield = bubble (they have no rough landings) */
 function collectAI(a,id){if(GK==="pass")return;for(var k=0;k<PK.length;k++){var p=PK[k];if(p.t===3&&(a.wpn>=0||GK==="pass")||p.t===4&&a.hp>=a.hpMax)continue;if(nearPk(p,a)&&claimPk(p,id)){if(p.t===0)a.nitro=BDUR;else if(p.t===1)a.shield=true;else if(p.t===2)a.grip=8;else if(p.t===3){a.wpn=Math.floor(Math.random()*4);a.wt=.6+Math.random()*1.8}else a.hp=a.hpMax}}}
 
@@ -854,7 +857,7 @@ function pkIcon(t,col){
 }
 function drawPickups(x0,x1){
   var k,p,y,g;
-  for(k=0;k<PK.length;k++){p=PK[k];if(!p.on||p.x<x0-40||p.x>x1+40||(GK==="pass"&&p.t===3))continue;
+  for(k=0;k<PK.length;k++){p=PK[k];if(!p.on||p.x<x0-40||p.x>x1+40||(GK==="pass"&&!BOTS&&p.t===3))continue;
     y=p.y+Math.sin(clock*3+p.x*.01)*6;
     var had=p.by.indexOf(PID())>=0||(p.t===3&&wpn>=0)||(p.t===4&&hp>=hpMax),al=had?.4:1;   /* faded = you've had yours, still there for someone else */
     ctx.save();ctx.translate(p.x,y);
@@ -1947,7 +1950,7 @@ function initAI(){
   for(i=nm.length-1;i>0;i--){j=Math.floor(Math.random()*(i+1));t=nm[i];nm[i]=nm[j];nm[j]=t}
   for(i=0;i<ROS.length;i++)hs.push((h0+i*72+Math.random()*30)%360);
   for(i=hs.length-1;i>0;i--){j=Math.floor(Math.random()*(i+1));t=hs[i];hs[i]=hs[j];hs[j]=t}
-  AI=ROS.map(function(r,i){var x=START_X,pl=mkPal(Math.round(hs[i]));return {ty:pool[i+1],name:nm[i],pal:pl,col:pl[1],vmax:r*stat(pool[i+1],0,.06),x:x,y:groundY(x)-AOFF,vx:0,vy:0,a:0,spin:0,pad:0,nitro:0,grip:0,shield:false,stun:0,hz:-1,fin:false,t:0,lp:-1,th:0,wpn:-1,wt:0,emp:0,oil:0,hit:0,hitD:1,hpMax:CARTY[pool[i+1]].hp,hp:CARTY[pool[i+1]].hp,calm:0,dv:mkDv(Math.floor(Math.random()*6))}});if(GK==="split"&&!BOTS)AI=[];if(typeof updChips==="function")updChips()}
+  AI=ROS.map(function(r,i){var x=START_X,pl=mkPal(Math.round(hs[i]));return {ty:pool[i+1],name:nm[i],pal:pl,col:pl[1],vmax:r*stat(pool[i+1],0,.06),x:x,y:groundY(x)-AOFF,vx:0,vy:0,a:0,spin:0,pad:0,nitro:0,grip:0,shield:false,stun:0,hz:-1,fin:false,t:0,lp:-1,th:0,wpn:-1,wt:0,emp:0,oil:0,hit:0,hitD:1,hpMax:CARTY[pool[i+1]].hp,hp:CARTY[pool[i+1]].hp,calm:0,dv:mkDv(Math.floor(Math.random()*6))}});if((GK==="split"||GK==="pass")&&!BOTS)AI=[];if(typeof updChips==="function")updChips()}
 function updAI(d){
   if(mode!=="race"&&mode!=="done")return;
   RT+=d;
@@ -2536,7 +2539,7 @@ addEventListener("keydown",function(e){
   else h=0;
   if(h)e.preventDefault();
 });
-function startPass(){setKind("pass");PASS.i=0;PASS.res=[];PASS.done=false;openSelect()}
+function startPass(){setKind("pass");BOTS=PBOTS;document.body.dataset.bots=PBOTS?"1":"0";PASS.i=0;PASS.res=[];PASS.done=false;openSelect()}
 function onAgain(){
   if(GK==="pass"){
     if(PASS.done){startPass();return}
@@ -2551,8 +2554,12 @@ $("botsY").onclick=function(){goSplit(true)};$("botsN").onclick=function(){goSpl
 $("splitBack").onclick=function(){showPane("Main")};
 $("passBtn").onclick=function(){showPane("Pass")};
 $("passBack").onclick=function(){showPane("Main")};
+var PBOTS=true;
+Array.prototype.forEach.call(document.querySelectorAll("#panePass .cnt.bt .mb"),function(b,i,all){
+  b.onclick=function(){PBOTS=b.dataset.b==="1";Array.prototype.forEach.call(all,function(o){o.classList.toggle("sel",o===b)})};
+});
 $("passGo").onclick=startPass;
-Array.prototype.forEach.call(document.querySelectorAll("#panePass .cnt .mb"),function(b,i,all){
+Array.prototype.forEach.call(document.querySelectorAll("#panePass .cnt:not(.bt) .mb"),function(b,i,all){
   b.onclick=function(){PASS.n=+b.dataset.n;Array.prototype.forEach.call(all,function(o){o.classList.toggle("sel",o===b)})};
 });
 
@@ -2635,6 +2642,7 @@ toMenu();
 requestAnimationFrame(loop);
 })();
 </script>
+<script>["gesturestart","gesturechange","gestureend"].forEach(function(t){document.addEventListener(t,function(e){e.preventDefault()},{passive:false})});</script>
 <script>if("serviceWorker"in navigator)addEventListener("load",function(){navigator.serviceWorker.register("sw.js").catch(function(){})});</script>
 </body>
 </html>

@@ -1,5 +1,5 @@
 /* Racer offline cache. Works from any folder; only touches the files below. */
-var CACHE="racer-v1";
+var CACHE="racer-v3";
 var NAMES=["racer.html","manifest.webmanifest","icon-180.png","icon-192.png","icon-512.png"];
 var PATHS=NAMES.map(function(f){return new URL(f,self.registration.scope).pathname});
 self.addEventListener("install",function(e){e.waitUntil(caches.open(CACHE).then(function(c){return c.addAll(NAMES)}).then(function(){return self.skipWaiting()}))});
