@@ -557,7 +557,7 @@ var BP=[{ox:-48,oy:-8},{ox:48,oy:-8},{ox:-42,oy:-18},{ox:-30,oy:-22.5},{ox:-8,oy
 var car,spin=0,airT=0,airAng=0,wasAir=false,flips=0,stuckT=0,loopsDone=0;
 function refill(g){if(boostCd>0)boostCd=Math.max(0,boostCd-g);else if(boostT>0)boostT=Math.min(BDUR,boostT+g*BDUR/BCD)}
 var boostT=0,boostCd=0,padT=0,started=false,finished=false,raceT=0,bestT=0;
-var safe=null,safeT=0,zoneIdx=-1;
+var safe=null,safeT=0,zoneIdx=-1,SH=[],rsT=-99,rsN=0;   /* SH: history of safe spots, rsN: quick respawns in a row */
 /* ---- falling containers ---- */
 var CW=150,CHT=62,HOVER=260,GC=1900,shake=0;
 var HAZ=[].map(function(x,i){return {x:x,gy:groundY(x),st:0,by:0,vy:0,t:0,i:i}});
@@ -593,10 +593,24 @@ function updHaz(dt){
 }
 try{bestT=parseFloat(localStorage.getItem("racerBest2"))||0}catch(e){}
 function place(x,y,a){rearm(x);car={x:x,y:y,vx:0,vy:0,a:a,w:0};airT=0;airAng=0;stuckT=0;wasAir=false;padT=0;for(var i=0;i<LS.length;i++)LS[i]=0}
-function respawn(){dvCrash(DV_ME);if(safe)place(safe.x,safe.y-14,safe.a);else place(START_X,groundY(START_X)-32,0)}
+/* respawn: flat, loop-free spot. Respawning again within 6s of the last one (you got stuck) steps back to an older safe spot each time */
+function respawn(){
+  dvCrash(DV_ME);
+  rsN=(clock-rsT<6)?rsN+1:0;rsT=clock;
+  var sp=null;
+  if(SH.length){var ix=Math.max(0,SH.length-1-rsN);sp=SH[ix];SH.length=ix+1}
+  if(sp){place(sp.x,groundY(sp.x)-32,0);car.vx=180}
+  else{place(START_X,groundY(START_X)-32,0)}
+}
+function okSpot(x){
+  var i,L;
+  for(i=0;i<LOOPS.length;i++){L=LOOPS[i];if(x>L.x-L.r-500&&x<L.x+L.r+300)return false}   /* needs a run-up before a loop */
+  if(Math.abs(groundY(x+160)-groundY(x-160))>40||Math.abs(groundY(x+60)-groundY(x-60))>14)return false;   /* flat only: no ramps or slopes */
+  return true;
+}
 function resetMe(){
   applyCar();
-  safe=null;safeT=0;place(START_X,groundY(START_X)-32,0);camX=car.x;camY=car.y;zoom=1;zoneIdx=-1;
+  safe=null;safeT=0;SH=[];rsT=-99;rsN=0;place(START_X,groundY(START_X)-32,0);camX=car.x;camY=car.y;zoom=1;zoneIdx=-1;
   finished=false;boostT=0;boostCd=0;flips=0;loopsDone=0;shieldOn=false;gripT=0;spin=0;prevBoost=0;PN={};
   DM_ME=mkDm();wpn=-1;empT=0;oilT=0;cloakT=0;gravT=0;hpMax=CARTY[carTy].hp;hp=hpMax;hpCalm=0;wreckT=0;DV_ME=mkDv(1);ME.t=0;
 }
@@ -721,7 +735,7 @@ function step(dt){
   c.vx+=fx*dt;c.vy+=(fy+G*(gravT>0?.12:1))*dt;
   if(gravT>0){c.vy*=1-Math.min(1,1.6*dt);c.vx*=1-Math.min(1,.45*dt)}   /* anti-gravity: drift weightlessly, losing speed */
   c.vx*=1-0.04*dt;
-  if(finished)c.vx*=1-Math.min(1,2.5*dt);   /* after the line: brake to a stop right past the gate */
+  if(finished){c.vx*=1-Math.min(1,2.5*dt);if(c.vx<0||(grounded&&c.vx<30)){c.vx=0;c.vy=grounded?0:c.vy;c.w*=.5}}   /* after the line: slow to a stop right past the gate, never roll back */
   c.w+=tq/I*dt;
   c.x+=c.vx*dt;c.y+=c.vy*dt;c.a+=c.w*dt;
 
@@ -764,8 +778,12 @@ function step(dt){
   safeT+=dt;
   if(wg===2&&bc===0&&safeT>.25&&surf&&surf.loop<0&&Math.cos(c.a-Math.atan2(surf.ty,surf.tx))>.9){
     var nearLoop=false;
-    for(li=0;li<LOOPS.length;li++)if(LS[li]||Math.abs(c.x-LOOPS[li].x)<LOOPS[li].r+120)nearLoop=true;
-    if(!nearLoop){safe={x:c.x,y:c.y,a:c.a};safeT=0}
+    for(li=0;li<LOOPS.length;li++)if(LS[li])nearLoop=true;
+    if(!nearLoop&&surf.mat!=="ramp"&&Math.abs(surf.ty)<.12&&okSpot(c.x)){
+      safe={x:c.x,y:c.y,a:c.a};safeT=0;
+      var lt=SH.length?SH[SH.length-1]:null;
+      if(lt&&Math.abs(lt.x-c.x)<250)SH[SH.length-1]=safe;else{SH.push(safe);if(SH.length>14)SH.shift()}
+    }
   }
   var up=Math.cos(c.a);
   if(up<-0.2&&Math.hypot(c.vx,c.vy)<120)stuckT+=dt;else stuckT=0;
@@ -964,7 +982,36 @@ function wheelStd(x,y,spin,ty){
 }
 /* ---- per-car wheel designs: 0/1 classic + bronze (above), 2 SUV off-road, 3 Pickup steel, 4 Rally mesh, 5 Bus hubcap ---- */
 function drawWheel0(x,y,spin,ty){
-  if(ty===2)wheelSUV(x,y,spin);else if(ty===3)wheelSteel(x,y,spin);else if(ty===4)wheelMesh(x,y,spin);else if(ty===5)wheelCap(x,y,spin);else if(ty===6)wheelTwin(x,y,spin);else if(ty===7)wheelDeep(x,y,spin);else wheelStd(x,y,spin,ty);
+  if(ty===2)wheelSUV(x,y,spin);else if(ty===3)wheelSteel(x,y,spin);else if(ty===4)wheelMesh(x,y,spin);else if(ty===5)wheelCap(x,y,spin);else if(ty===6)wheelTwin(x,y,spin);else if(ty===7)wheelDeep(x,y,spin);else if(ty===8)wheelAero(x,y,spin);else if(ty===9)wheelPod(x,y,spin);else if(ty===10)wheelWood(x,y,spin);else if(ty===11)wheelHyper(x,y,spin);else wheelStd(x,y,spin,ty);
+}
+function wheelWood(x,y,spin){ /* tourer: white-wall tyre, red wooden spokes, nickel hubcap */
+  var i;
+  ctx.save();ctx.translate(x,y);
+  wheelDisc(R,"#0b0b0d");wheelDisc(R-1.7,"#ece8dc");wheelRing(R-2.4,"rgba(110,100,80,.35)",.6);
+  wheelRing(R-5.4,"#17181c",1.1);
+  wheelDisc(R-6,"#d2432a");wheelRing(R-6,"#f0714f",.7);
+  wheelDisc(R-8.1,"rgba(14,8,8,.72)");
+  ctx.save();ctx.rotate(spin);ctx.lineCap="round";
+  for(i=0;i<12;i++){ctx.rotate(Math.PI*2/12);
+    ctx.strokeStyle="#c93a22";ctx.lineWidth=1.7;ctx.beginPath();ctx.moveTo(3,0);ctx.lineTo(R-7.6,0);ctx.stroke();
+    ctx.strokeStyle="rgba(255,150,110,.55)";ctx.lineWidth=.5;ctx.beginPath();ctx.moveTo(3.2,-.5);ctx.lineTo(R-7.8,-.5);ctx.stroke()}
+  ctx.restore();ctx.lineCap="butt";
+  wheelDisc(3.6,"#1a1a1e");wheelDisc(2.9,"#d9dde5");wheelRing(2.9,"#6b7280",.6);wheelDisc(1,"#6b7280");
+  ctx.restore();
+}
+function wheelHyper(x,y,spin){ /* hypercar: gloss-black ten-spoke alloy, red caliper, silver centre nut */
+  var i;
+  ctx.save();ctx.translate(x,y);
+  wheelDisc(R,"#0b0b0d");wheelRing(R-.9,"#2b2b31",.9);
+  wheelDisc(R-3,"#14161b");wheelDisc(R-4.6,"#1c1f27");wheelRing(R-4.6,"#4f5666",.7);
+  ctx.strokeStyle="#c8322b";ctx.lineWidth=3;ctx.lineCap="round";ctx.beginPath();ctx.arc(0,0,R-7.6,.15,1.05);ctx.stroke();ctx.lineCap="butt";
+  ctx.save();ctx.rotate(spin);
+  for(i=0;i<10;i++){ctx.rotate(Math.PI*2/10);
+    ctx.strokeStyle="#07080b";ctx.lineWidth=2.2;ctx.beginPath();ctx.moveTo(2.4,0);ctx.lineTo(R-5,0);ctx.stroke();
+    ctx.strokeStyle="rgba(150,160,180,.55)";ctx.lineWidth=.5;ctx.beginPath();ctx.moveTo(2.6,-.6);ctx.lineTo(R-5.2,-.6);ctx.stroke()}
+  ctx.restore();
+  wheelDisc(3,"#0a0b0e");wheelDisc(1.6,"#aab2c0");
+  ctx.restore();
 }
 function wheelDisc(r,c){ctx.fillStyle=c;ctx.beginPath();ctx.arc(0,0,r,0,7);ctx.fill()}
 function wheelRing(r,c,w){ctx.strokeStyle=c;ctx.lineWidth=w;ctx.beginPath();ctx.arc(0,0,r,0,7);ctx.stroke()}
@@ -1066,7 +1113,11 @@ var CARTY=[
   {n:"Rally",pal:mkPal(275),sx:1,sy:.8,s:[3,2,4,4],hp:4,d:"Great grip and a big boost, but slow to accelerate and light on health."},
   {n:"Bus",pal:mkPal(46),sx:1,sy:1,s:[2,2,3,4],hp:4,arm:1,d:"🛡 Armoured: every hit does 1 less damage. Slow to get going."},
   {n:"Roadster",pal:mkPal(352),sx:.8,sy:.88,s:[2,4,4,3],hp:4,d:"Low, open-top electric-style two-seater: quick off the line and grippy, but low top speed and fragile."},
-  {n:"Muscle",pal:["hsl(354,78%,64%)","hsl(354,72%,36%)","hsl(354,76%,16%)","hsla(354,80%,8%,.7)"],sx:.8,sy:.62,s:[4,5,1,3],hp:4,d:"Chrome-and-crimson V8 hardtop: brutal power and speed, but hard to keep planted and fragile."}
+  {n:"Muscle",pal:["hsl(354,78%,64%)","hsl(354,72%,36%)","hsl(354,76%,16%)","hsla(354,80%,8%,.7)"],sx:.8,sy:.62,s:[4,5,1,3],hp:4,d:"Chrome-and-crimson V8 hardtop: brutal power and speed, but hard to keep planted and fragile."},
+  {n:"Crossover",pal:["hsl(34,30%,58%)","hsl(31,26%,40%)","hsl(28,28%,21%)","hsla(28,32%,11%,.7)"],sx:1,sy:.9,s:[3,4,3,3],hp:4,d:"Matte-bronze electric coupe-SUV: punchy off the line with balanced grip, but light on armour."},
+  {n:"Pod",pal:["hsl(210,30%,99%)","hsl(212,24%,93%)","hsl(216,20%,72%)","hsla(218,26%,40%,.7)"],sx:1,sy:1,s:[2,4,3,4],hp:4,d:"Tiny electric city pod with a big glass bubble door and a stubby bumper: quick off the line with a big boost, but low top speed and fragile."},
+  {n:"Tourer",pal:["hsl(222,16%,38%)","hsl(222,14%,13%)","hsl(222,16%,5%)","hsla(222,18%,2%,.7)"],sx:1,sy:1,s:[2,4,3,4],hp:4,d:"Vintage black tourer with a raised canvas top: strong pull and a big boost, but old bodywork that is light on health."},
+  {n:"Hypercar",pal:["hsl(215,16%,90%)","hsl(215,12%,68%)","hsl(215,14%,40%)","hsla(215,18%,20%,.7)"],sx:.9,sy:.5,s:[5,4,1,2.7],gm:.65,hp:3,d:"Silver aero monster with a huge rear wing: the fastest car and a rocket off the line, but slippery and very fragile."}
 ];
 function drawAcc(t,pal){
   if(t===1){ /* integrated ducktail spoiler */
@@ -1094,12 +1145,148 @@ function drawAcc(t,pal){
     ctx.strokeStyle="rgba(0,0,0,.45)";ctx.lineWidth=.6;ctx.stroke();
     ctx.strokeStyle="#0b0c10";ctx.lineWidth=1.6;ctx.beginPath();ctx.moveTo(33,-6.3);ctx.quadraticCurveTo(35,-8.4,40,-8.4);ctx.lineTo(47,-8);ctx.quadraticCurveTo(51.4,-7.4,53.6,-4.6);ctx.stroke();
     ctx.strokeStyle="rgba(255,255,255,.35)";ctx.lineWidth=.6;ctx.beginPath();ctx.moveTo(36,-7.6);ctx.lineTo(46,-7);ctx.stroke();
+  }else if(t===10){ /* tourer: steering wheel, upright windscreen + side lamp, raised canvas top (drawn over the driver) */
+    ctx.strokeStyle="#0b0c10";ctx.lineWidth=1.6;ctx.beginPath();ctx.moveTo(11,-6.8);ctx.lineTo(6.4,-12.2);ctx.stroke();
+    ctx.save();ctx.translate(6.4,-12.2);ctx.rotate(-.7);ctx.strokeStyle="#15171d";ctx.lineWidth=1.5;ctx.beginPath();ctx.ellipse(0,0,6.6,1.8,0,0,7);ctx.stroke();
+    ctx.strokeStyle="rgba(255,255,255,.35)";ctx.lineWidth=.5;ctx.beginPath();ctx.ellipse(0,0,6.6,1.8,0,Math.PI*1.1,Math.PI*1.9);ctx.stroke();ctx.restore();
+    ctx.fillStyle="rgba(165,205,240,.3)";ctx.beginPath();ctx.moveTo(12.2,-8.4);ctx.lineTo(9.6,-31);ctx.lineTo(11.6,-31.2);ctx.lineTo(15,-8.4);ctx.closePath();ctx.fill();
+    ctx.strokeStyle="#d5dbe6";ctx.lineWidth=.9;ctx.stroke();
+    ctx.beginPath();ctx.moveTo(11,-19);ctx.lineTo(13.4,-19);ctx.stroke();
+    ctx.fillStyle="#cfd6df";ctx.beginPath();ctx.ellipse(14.6,-13.4,2.5,3,0,0,7);ctx.fill();ctx.strokeStyle="rgba(0,0,0,.5)";ctx.lineWidth=.5;ctx.stroke();
+    ctx.fillStyle="#fff3b0";ctx.beginPath();ctx.ellipse(16.6,-13.4,.9,2.2,0,0,7);ctx.fill();
+    ctx.strokeStyle="#12141a";ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(-46,-33);ctx.lineTo(-50,-6.8);ctx.stroke();
+    var rg=ctx.createLinearGradient(0,-39,0,-30);rg.addColorStop(0,"#2e323d");rg.addColorStop(.5,"#171a22");rg.addColorStop(1,"#0d0f14");
+    ctx.beginPath();ctx.moveTo(25.2,-31.2);ctx.quadraticCurveTo(27.2,-34.4,23,-35.2);ctx.lineTo(-8,-37.8);ctx.quadraticCurveTo(-38,-39.4,-49.5,-36);
+    ctx.quadraticCurveTo(-57.2,-31,-59.2,-8.6);ctx.lineTo(-56.4,-8.4);ctx.quadraticCurveTo(-55.2,-30,-47.5,-33.4);ctx.lineTo(20,-31);ctx.closePath();
+    ctx.fillStyle=rg;ctx.fill();ctx.strokeStyle="rgba(0,0,0,.65)";ctx.lineWidth=.8;ctx.stroke();
+    ctx.strokeStyle="rgba(255,255,255,.32)";ctx.lineWidth=.9;ctx.beginPath();ctx.moveTo(22.5,-34.9);ctx.lineTo(-8,-37.4);ctx.quadraticCurveTo(-38,-39,-49,-35.8);ctx.stroke();
   }else if(t===4){ /* roof light bar */
     ctx.fillStyle="#14161c";ctx.fillRect(-16,-25,30,3.5);
     ctx.fillStyle="#ffe066";for(var i=0;i<4;i++)ctx.fillRect(-13+i*7,-24.5,4,2.5);
   }
 }
 /* ---------- Sport: low wedge supercar (deep blue, LED-ring headlights, bronze wheels) ---------- */
+/* ---------- Tourer: vintage black touring car (upright radiator, running boards, swept fenders, raised canvas top, red spoked wheels) ---------- */
+var DVPAL10=["hsl(32,40%,62%)","hsl(26,42%,34%)","hsl(24,45%,20%)","hsla(24,50%,10%,.7)"];
+function modelTShell(){
+  ctx.beginPath();ctx.moveTo(-56,19);ctx.lineTo(-59,12);ctx.lineTo(-59.5,-3);ctx.quadraticCurveTo(-59.5,-6.5,-55,-6.5);
+  ctx.lineTo(13,-6.5);ctx.lineTo(15,-8.4);ctx.lineTo(43,-8.4);ctx.lineTo(44,-15.5);ctx.quadraticCurveTo(44.2,-17.2,46,-17.2);
+  ctx.lineTo(53,-17.2);ctx.quadraticCurveTo(54.8,-17.2,54.9,-15);ctx.lineTo(55.3,9);ctx.lineTo(59,12);ctx.lineTo(59.5,17);
+  ctx.quadraticCurveTo(59.5,19,56,19);ctx.lineTo(23,19);ctx.lineTo(21,11.5);ctx.lineTo(-20,11.5);ctx.lineTo(-22,19);ctx.closePath();
+}
+function mtFender(cx,front,pal){
+  var g=ctx.createLinearGradient(0,-5,0,12);
+  g.addColorStop(0,pal[0]);g.addColorStop(.45,pal[1]);g.addColorStop(1,pal[2]);
+  ctx.beginPath();
+  ctx.ellipse(cx,14,19.5,17.6,0,Math.PI,Math.PI*2);
+  if(front){
+    ctx.quadraticCurveTo(cx+22,16,cx+20.4,19.6);ctx.lineTo(cx+17.4,18.6);ctx.quadraticCurveTo(cx+16.6,16,cx+16.6,14);
+    ctx.ellipse(cx,14,16.6,14.7,0,Math.PI*2,Math.PI,true);
+  }else{
+    ctx.lineTo(cx+16.6,14);ctx.ellipse(cx,14,16.6,14.7,0,Math.PI*2,Math.PI,true);
+    ctx.quadraticCurveTo(cx-16.6,16,cx-17.4,18.6);ctx.lineTo(cx-20.4,19.6);ctx.quadraticCurveTo(cx-22,16,cx-19.5,14);
+  }
+  ctx.closePath();ctx.fillStyle=g;ctx.fill();ctx.strokeStyle="rgba(0,0,0,.65)";ctx.lineWidth=.7;ctx.stroke();
+  ctx.strokeStyle="rgba(255,255,255,.5)";ctx.lineWidth=.9;ctx.beginPath();ctx.ellipse(cx,14,18,16.1,0,Math.PI*1.12,Math.PI*1.88);ctx.stroke();
+}
+function drawModelT(o){
+  var i,g,pal=o.pal;
+  /* seats show through the open sides */
+  ctx.fillStyle="#241a16";rr(-53,-21,9,14.5,3);ctx.fill();rr(-13.5,-21,7.5,14.5,3);ctx.fill();
+  rr(-53,-9.2,15,3,1.4);ctx.fill();rr(-14,-9.2,15,3,1.4);ctx.fill();
+  ctx.strokeStyle="rgba(255,255,255,.2)";ctx.lineWidth=.7;ctx.beginPath();ctx.moveTo(-51.5,-19);ctx.lineTo(-46,-19);ctx.moveTo(-12,-19);ctx.lineTo(-7.5,-19);ctx.stroke();
+  /* body tub, hood and radiator */
+  g=ctx.createLinearGradient(0,-17,0,19);g.addColorStop(0,pal[0]);g.addColorStop(.28,pal[1]);g.addColorStop(1,pal[2]);
+  modelTShell();ctx.fillStyle=g;ctx.fill();
+  ctx.save();modelTShell();ctx.clip();
+  ctx.strokeStyle="rgba(255,255,255,.5)";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(-58,-5.6);ctx.lineTo(12,-5.6);ctx.moveTo(16,-7.5);ctx.lineTo(42,-7.5);ctx.stroke();
+  ctx.strokeStyle="rgba(255,255,255,.2)";ctx.beginPath();ctx.moveTo(-58,.5);ctx.quadraticCurveTo(-20,-.8,20,.4);ctx.stroke();
+  ctx.strokeStyle="rgba(255,255,255,.18)";ctx.lineWidth=.9;ctx.beginPath();ctx.moveTo(51.5,-15);ctx.lineTo(51.5,7);ctx.stroke();
+  ctx.strokeStyle="rgba(0,0,0,.6)";ctx.lineWidth=.8;ctx.beginPath();for(i=0;i<7;i++){ctx.moveTo(19+i*3.4,-6.6);ctx.lineTo(19+i*3.4,-1.2)}ctx.stroke();
+  ctx.strokeStyle="rgba(255,255,255,.15)";ctx.beginPath();for(i=0;i<7;i++){ctx.moveTo(19.8+i*3.4,-6.6);ctx.lineTo(19.8+i*3.4,-1.2)}ctx.stroke();
+  ctx.strokeStyle="rgba(0,0,0,.7)";ctx.lineWidth=.8;ctx.beginPath();ctx.moveTo(-36,-6);ctx.lineTo(-36,11);ctx.moveTo(-12,-6);ctx.lineTo(-12,11);ctx.moveTo(12,-6);ctx.lineTo(12,11);ctx.stroke();
+  ctx.strokeStyle="rgba(255,255,255,.14)";ctx.beginPath();ctx.moveTo(-35.2,-6);ctx.lineTo(-35.2,11);ctx.moveTo(-11.2,-6);ctx.lineTo(-11.2,11);ctx.moveTo(12.8,-6);ctx.lineTo(12.8,11);ctx.stroke();
+  ctx.fillStyle="#cfd6df";rr(5,-3,4.4,1.3,.6);ctx.fill();rr(-19,-3,4.4,1.3,.6);ctx.fill();
+  ctx.restore();
+  /* chassis rail, running board, fenders */
+  ctx.fillStyle="#08090c";ctx.fillRect(-30,15,60,2.4);
+  ctx.fillStyle="#0c0d11";rr(-23,11.3,47,3.6,1.2);ctx.fill();
+  ctx.fillStyle="rgba(255,255,255,.22)";ctx.fillRect(-22,11.5,45,.7);
+  ctx.strokeStyle="rgba(150,155,170,.35)";ctx.lineWidth=.6;ctx.beginPath();for(i=0;i<11;i++){ctx.moveTo(-20+i*4.2,12.4);ctx.lineTo(-20+i*4.2,14.4)}ctx.stroke();
+  mtFender(-38.6,false,pal);mtFender(38.6,true,pal);
+  /* radiator trim + cap */
+  ctx.strokeStyle="#d5dbe6";ctx.lineWidth=1.1;ctx.beginPath();ctx.moveTo(44.2,-15.6);ctx.quadraticCurveTo(44.4,-17.2,46,-17.2);ctx.lineTo(53,-17.2);ctx.quadraticCurveTo(54.8,-17.2,54.9,-15);ctx.lineTo(55.3,8);ctx.stroke();
+  g=ctx.createLinearGradient(0,-21,0,-17);g.addColorStop(0,"#f4f6fa");g.addColorStop(1,"#8f97a6");ctx.fillStyle=g;rr(47,-20.6,5,3.6,1.4);ctx.fill();
+  /* nickel headlamp on the fender + front bumper + starting crank */
+  ctx.fillStyle="#12141a";rr(52,2.4,3,2.4,.8);ctx.fill();
+  g=ctx.createLinearGradient(0,-7.5,0,2.5);g.addColorStop(0,"#f6f8fb");g.addColorStop(.5,"#aab2be");g.addColorStop(1,"#5f6672");
+  ctx.fillStyle=g;rr(49,-7.5,9,10,3);ctx.fill();ctx.strokeStyle="rgba(0,0,0,.55)";ctx.lineWidth=.7;ctx.stroke();
+  ctx.fillStyle="#fff7c2";rr(57.2,-6.5,1.8,8,.9);ctx.fill();
+  ctx.strokeStyle="rgba(255,255,255,.7)";ctx.lineWidth=.6;ctx.beginPath();ctx.moveTo(50.5,-6.3);ctx.lineTo(55.5,-6.3);ctx.stroke();
+  g=ctx.createLinearGradient(0,10,0,13.4);g.addColorStop(0,"#f4f6fa");g.addColorStop(.5,"#9aa1ad");g.addColorStop(1,"#d9dde4");
+  ctx.fillStyle=g;rr(56,10.2,7.5,3.2,1.4);ctx.fill();
+  ctx.strokeStyle="#cfd6df";ctx.lineWidth=1.1;ctx.beginPath();ctx.moveTo(58.8,13.4);ctx.lineTo(61.2,14.8);ctx.lineTo(61.4,17.2);ctx.stroke();
+  /* tail lamp + plate */
+  ctx.fillStyle="#cfd6df";ctx.beginPath();ctx.arc(-59.6,1.4,3.1,0,7);ctx.fill();
+  ctx.fillStyle=o.br?"#ff5a5a":"#a8142a";ctx.beginPath();ctx.arc(-59.8,1.4,2.2,0,7);ctx.fill();
+  ctx.fillStyle="#e7e2cf";rr(-60.6,5.4,1.6,6,.6);ctx.fill();
+}
+/* ---------- Hypercar: low silver wedge with black aero, slim LED blade headlamps and a big rear wing ---------- */
+function hyperShell(){
+  ctx.beginPath();ctx.moveTo(-57,19);ctx.lineTo(-61,11);ctx.quadraticCurveTo(-62.5,3,-60,-2);
+  ctx.quadraticCurveTo(-57,-8,-48,-9.2);ctx.lineTo(-30,-9);ctx.quadraticCurveTo(-8,-7,14,-6.6);
+  ctx.quadraticCurveTo(34,-6,48,0);ctx.quadraticCurveTo(58,3,61,8.5);ctx.lineTo(61.5,13);ctx.quadraticCurveTo(61.5,19,56,19);ctx.closePath();
+}
+function hyperGlass(){
+  ctx.beginPath();ctx.moveTo(-30,-7);ctx.quadraticCurveTo(-27,-13.4,-19,-15.4);ctx.lineTo(-6,-16.2);ctx.quadraticCurveTo(4,-15.4,11,-12);ctx.lineTo(25,-6.8);ctx.closePath();
+}
+function drawHyper(o){
+  var i,g,pal=o.pal;
+  /* canopy: body-coloured roof frame with a long raked glass house */
+  ctx.beginPath();ctx.moveTo(-40,-7.5);ctx.quadraticCurveTo(-34,-15.6,-22,-17.4);ctx.quadraticCurveTo(-8,-19.6,4,-17.6);ctx.quadraticCurveTo(14,-14.2,31,-6.2);ctx.lineTo(31,-4);ctx.lineTo(-40,-4);ctx.closePath();
+  g=ctx.createLinearGradient(0,-20,0,-5);g.addColorStop(0,pal[0]);g.addColorStop(.5,pal[1]);g.addColorStop(1,pal[2]);
+  ctx.fillStyle=g;ctx.fill();ctx.strokeStyle="#0a0d14";ctx.lineWidth=1.1;ctx.stroke();
+  hyperGlass();g=ctx.createLinearGradient(0,-16,0,-6);g.addColorStop(0,"#6f89aa");g.addColorStop(.45,"#1b2638");g.addColorStop(1,"#080b12");ctx.fillStyle=g;ctx.fill();
+  ctx.fillStyle="rgba(255,255,255,.17)";ctx.beginPath();ctx.moveTo(-14,-7);ctx.lineTo(-8,-15.8);ctx.lineTo(-4.5,-15.9);ctx.lineTo(-10.5,-7);ctx.fill();
+  ctx.strokeStyle="rgba(255,255,255,.6)";ctx.lineWidth=.9;ctx.beginPath();ctx.moveTo(-36,-11.6);ctx.quadraticCurveTo(-30,-17,-18,-18.2);ctx.quadraticCurveTo(-6,-19,4,-17.2);ctx.stroke();
+  /* shell */
+  g=ctx.createLinearGradient(0,-9,0,19);g.addColorStop(0,pal[0]);g.addColorStop(.3,pal[1]);g.addColorStop(1,pal[2]);
+  hyperShell();ctx.fillStyle=g;ctx.fill();
+  ctx.save();hyperShell();ctx.clip();
+  ctx.strokeStyle="rgba(255,255,255,.6)";ctx.lineWidth=1.1;ctx.beginPath();ctx.moveTo(-56,-5.5);ctx.quadraticCurveTo(-20,-8.5,14,-6.2);ctx.quadraticCurveTo(36,-5.4,52,.4);ctx.stroke();
+  ctx.strokeStyle="rgba(255,255,255,.22)";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(-57,2);ctx.quadraticCurveTo(0,0,52,6.5);ctx.stroke();
+  ctx.strokeStyle="rgba(20,30,50,.4)";ctx.beginPath();ctx.moveTo(-57,5.6);ctx.quadraticCurveTo(0,3.6,53,10);ctx.stroke();
+  /* black side intake with slats behind the door */
+  ctx.fillStyle="#090a0e";ctx.beginPath();ctx.moveTo(-26,-4);ctx.lineTo(-8,-2.4);ctx.lineTo(-10,8);ctx.lineTo(-28,8.6);ctx.closePath();ctx.fill();
+  ctx.strokeStyle="#3a3f4a";ctx.lineWidth=.6;ctx.beginPath();for(i=0;i<3;i++){ctx.moveTo(-26.6+i*.6,-.6+i*3.2);ctx.lineTo(-9+i*-.4,.6+i*3.2)}ctx.stroke();
+  /* door seams + handle, bonnet vents */
+  ctx.strokeStyle="rgba(20,30,50,.55)";ctx.lineWidth=.8;ctx.beginPath();ctx.moveTo(-5,-6);ctx.lineTo(-6.5,12);ctx.moveTo(21,-6);ctx.lineTo(22,12);ctx.stroke();
+  ctx.fillStyle="rgba(20,30,50,.6)";rr(10,-.4,6,1.4,.7);ctx.fill();
+  ctx.fillStyle="#090a0e";ctx.beginPath();ctx.moveTo(26,-5.8);ctx.lineTo(40,-4.4);ctx.lineTo(39,-3);ctx.lineTo(25.5,-4.4);ctx.closePath();ctx.fill();
+  /* black skirt, front fascia with mesh, splitter, rear diffuser */
+  ctx.fillStyle="#090b10";ctx.beginPath();ctx.moveTo(-20,19.5);ctx.lineTo(-18,15.2);ctx.lineTo(20,14.6);ctx.lineTo(22,19.5);ctx.closePath();ctx.fill();
+  ctx.beginPath();ctx.moveTo(46,6);ctx.lineTo(62,9);ctx.lineTo(62,19);ctx.lineTo(44,19);ctx.closePath();ctx.fill();
+  ctx.fillStyle="#3a3f4a";for(i=0;i<8;i++){ctx.beginPath();ctx.arc(48.4+(i%4)*3.6,11+Math.floor(i/4)*3.2,.6,0,7);ctx.fill()}
+  rr(41,16.4,22,4,1.6);ctx.fillStyle="#090b10";ctx.fill();
+  rr(-63,12,16,8,2);ctx.fill();
+  ctx.strokeStyle="#2a2f3a";ctx.lineWidth=.7;ctx.beginPath();for(i=0;i<4;i++){ctx.moveTo(-61+i*3.4,13);ctx.lineTo(-61+i*3.4,19)}ctx.stroke();
+  /* tail lamp bar (brighter when braking) */
+  ctx.fillStyle=o.br?"#ff5a5a":"#c8142a";ctx.beginPath();ctx.moveTo(-61.4,-1);ctx.lineTo(-55,-5.4);ctx.lineTo(-53.6,-4);ctx.lineTo(-60.4,1.2);ctx.closePath();ctx.fill();
+  /* wheel arches */
+  ctx.fillStyle="#0a0b10";for(i=0;i<2;i++){ctx.beginPath();ctx.ellipse(WH[i].ox/KX,WH[i].oy,(R+3.4)/KX,R+3.4,0,0,7);ctx.fill()}
+  ctx.strokeStyle="rgba(190,205,230,.35)";ctx.lineWidth=.9;for(i=0;i<2;i++){ctx.beginPath();ctx.ellipse(WH[i].ox/KX,WH[i].oy,(R+3.9)/KX,R+3.9,0,Math.PI*1.05,Math.PI*1.95);ctx.stroke()}
+  ctx.restore();
+  /* rear wing on swan-neck struts: big black carbon endplate with a silver edge */
+  ctx.strokeStyle="#0c0e13";ctx.lineWidth=2.2;ctx.beginPath();ctx.moveTo(-47,-8.8);ctx.lineTo(-50,-16.8);ctx.moveTo(-36,-9);ctx.lineTo(-40,-16.8);ctx.stroke();
+  ctx.fillStyle="#0b0d12";ctx.beginPath();ctx.moveTo(-66,-23.4);ctx.lineTo(-42,-26);ctx.lineTo(-38,-18.4);ctx.lineTo(-62,-16.4);ctx.closePath();ctx.fill();
+  ctx.strokeStyle="rgba(190,200,215,.55)";ctx.lineWidth=.6;ctx.stroke();
+  ctx.strokeStyle="rgba(255,255,255,.3)";ctx.beginPath();ctx.moveTo(-64.5,-22.6);ctx.lineTo(-43,-25);ctx.stroke();
+  /* mirror */
+  rr(21,-10,6.4,2.8,1.4);ctx.fillStyle=pal[2];ctx.fill();ctx.strokeStyle="#0a0d14";ctx.lineWidth=.7;ctx.stroke();
+  /* headlamp: slim LED blade */
+  ctx.fillStyle="#06080d";ctx.beginPath();ctx.moveTo(42,-1.6);ctx.lineTo(56.4,3);ctx.quadraticCurveTo(58.4,3.8,57.4,5.4);ctx.lineTo(45,1.8);ctx.closePath();ctx.fill();
+  ctx.fillStyle="#e9f6ff";ctx.beginPath();ctx.moveTo(46,-.2);ctx.lineTo(55,2.7);ctx.lineTo(54.8,3.5);ctx.lineTo(47.4,1.3);ctx.closePath();ctx.fill();
+}
 function sportShell(){
   ctx.beginPath();ctx.moveTo(-56,19);ctx.lineTo(-59.5,11);ctx.quadraticCurveTo(-61,3,-58,-2);
   ctx.quadraticCurveTo(-56.5,-5.4,-50,-6.4);ctx.lineTo(-14,-6.8);
@@ -1234,6 +1421,211 @@ function drawSport(o){
   ctx.strokeStyle="#fff";ctx.lineWidth=1.2;ctx.beginPath();ctx.arc(57.2,6.4,1.8,0,7);ctx.stroke();
   /* tail lamp bar (brighter when braking) */
   ctx.fillStyle=o.br?"#ff5a5a":"#c8142a";ctx.beginPath();ctx.moveTo(-60.4,-1);ctx.lineTo(-54.5,-4.6);ctx.lineTo(-53.2,-3.2);ctx.lineTo(-59.6,1.6);ctx.closePath();ctx.fill();
+}
+
+/* ---------- Pod: narrow electric city pod (pearl-white egg body, glass dome that sweeps down into a rounded nose, round glass door set in a moulded body bezel, LED nose panel, small bumpers, white disc wheels) ---------- */
+var POD_DW=(function(){var a=[],k,t;for(k=0;k<16;k++){t=k/16*Math.PI*2;a.push([-2+19.4*Math.cos(t),-11+17.2*Math.sin(t)])}return a})();
+function podShell(){ /* lower body: flat hood + rear deck at the belt line, small bumper lips front + rear (included so damage holes clip to them) */
+  ctx.beginPath();ctx.moveTo(-50,19.8);ctx.quadraticCurveTo(-67.5,19.8,-67.5,16);ctx.quadraticCurveTo(-67.5,12.8,-65.4,12.2);ctx.quadraticCurveTo(-63,11.4,-62.8,5);
+  ctx.lineTo(-62.8,-4.5);ctx.quadraticCurveTo(-62.8,-7.2,-58.8,-7.2);ctx.lineTo(-44,-7.2);ctx.bezierCurveTo(-37,-7.2,-34,-4.6,-26,-4.6);ctx.lineTo(52,-4.6);ctx.quadraticCurveTo(60.8,-4.6,61,3);
+  ctx.bezierCurveTo(61.2,5,61.3,7,61.3,9);ctx.lineTo(61.3,13);
+  ctx.quadraticCurveTo(62.5,13.4,62.5,16);ctx.quadraticCurveTo(62.5,19.8,55,19.8);ctx.closePath();
+}
+function podCabin(){ /* round bubble canopy wrapping the door; long raked back sweeping down to a slightly taller boot deck; S-curve windscreen into the hood */
+  ctx.beginPath();ctx.moveTo(-62.8,0);ctx.lineTo(-62.8,-4.5);ctx.quadraticCurveTo(-62.8,-7.2,-58.8,-7.2);ctx.lineTo(-54,-7.2);
+  ctx.bezierCurveTo(-44,-9,-32,-14,-29,-22);ctx.bezierCurveTo(-26,-30,-16,-36,-2,-36);
+  ctx.bezierCurveTo(12,-36,24,-28,28,-17);ctx.bezierCurveTo(30.5,-9.5,36,-4.6,48,-4.6);ctx.lineTo(56,-4.6);ctx.lineTo(56,0);ctx.closePath();
+}
+function podGlassD(){ctx.beginPath()} /* no dark windows any more: empty path, so window-damage overlays clip to nothing */
+function podDoor(){ctx.beginPath();ctx.ellipse(-2,-11,21.5,19,0,0,7)}
+function podDoorU(){ctx.beginPath();ctx.ellipse(-6,-9,18,19.5,0,0,7)}
+function podEllU(rx,ry){ctx.beginPath();ctx.ellipse(-6,-9,rx,ry,0,0,7)}
+function wheelPod(x,y,spin){ /* pod: slim black tyre, white disc wheel cover with air-slits, dark hub ring */
+  var i,g;
+  ctx.save();ctx.translate(x,y);
+  wheelDisc(R,"#0b0c10");wheelRing(R-.8,"#2a2c34",.8);
+  ctx.strokeStyle="rgba(255,255,255,.08)";ctx.lineWidth=1;ctx.beginPath();ctx.arc(0,0,R-1.6,Math.PI*1.05,Math.PI*1.55);ctx.stroke();
+  g=ctx.createRadialGradient(-3,-4,1,0,0,R-2.6);g.addColorStop(0,"#ffffff");g.addColorStop(.7,"#e4e9f1");g.addColorStop(1,"#b3bccb");
+  wheelDisc(R-2.6,g);wheelRing(R-2.6,"rgba(40,55,80,.55)",.6);
+  ctx.save();ctx.rotate(spin);ctx.strokeStyle="rgba(70,90,120,.5)";ctx.lineWidth=1.3;ctx.lineCap="round";
+  for(i=0;i<3;i++){var a=i*Math.PI*2/3;ctx.beginPath();ctx.arc(0,0,R-4.6,a,a+.85);ctx.stroke()}
+  ctx.lineCap="butt";ctx.restore();
+  wheelRing(R-7.2,"rgba(90,110,140,.3)",.5);
+  wheelDisc(5.4,"#171a22");wheelRing(5.4,"#8a92a4",.6);wheelDisc(3.1,"#eef1f6");
+  ctx.fillStyle="#2b2f3a";for(i=0;i<5;i++){var b=spin+i*Math.PI*2/5;ctx.beginPath();ctx.arc(Math.cos(b)*4.2,Math.sin(b)*4.2,.55,0,7);ctx.fill()}
+  ctx.restore();
+}
+function drawPod(o){
+  var i,c,r,g,pal=o.pal;
+  /* solid pearl cabin: roof, rear pillar and windscreen sweep are all body, the door is the only glass */
+  podCabin();g=ctx.createLinearGradient(0,-35,0,-4);g.addColorStop(0,pal[0]);g.addColorStop(.5,pal[1]);g.addColorStop(1,pal[2]);ctx.fillStyle=g;ctx.fill();
+  ctx.strokeStyle="rgba(30,44,72,.6)";ctx.lineWidth=.8;ctx.stroke();
+  /* lower body: rounded pearl shell */
+  g=ctx.createLinearGradient(0,-7,0,19.8);g.addColorStop(0,pal[0]);g.addColorStop(.35,pal[1]);g.addColorStop(1,pal[2]);
+  podShell();ctx.fillStyle=g;ctx.fill();
+  ctx.save();podShell();ctx.clip();
+  g=ctx.createLinearGradient(-62,0,62,0);g.addColorStop(0,"rgba(20,30,60,.16)");g.addColorStop(.35,"rgba(255,255,255,.12)");g.addColorStop(1,"rgba(20,30,60,.10)");ctx.fillStyle=g;ctx.fillRect(-64,-8,128,30);
+  ctx.fillStyle="rgba(255,255,255,.55)";ctx.fillRect(-62,-6.9,18,.9);ctx.fillRect(-26,-4.3,82,.9);
+  ctx.strokeStyle=pal[3];ctx.lineWidth=.6;ctx.beginPath();ctx.moveTo(-58,11.2);ctx.quadraticCurveTo(0,9.6,58,11.4);ctx.stroke();
+  /* nose + hood highlight, windscreen-base crease and tail shut line */
+  ctx.strokeStyle="rgba(255,255,255,.65)";ctx.lineWidth=.8;ctx.beginPath();ctx.moveTo(48,-3.2);ctx.lineTo(53,-3.2);ctx.quadraticCurveTo(58.8,-3.2,59.2,2);ctx.lineTo(59.4,6);ctx.stroke();
+  ctx.strokeStyle="rgba(30,44,72,.45)";ctx.lineWidth=.6;ctx.beginPath();ctx.moveTo(-59.6,-5.8);ctx.lineTo(-59.9,9.5);ctx.stroke();
+  ctx.strokeStyle="rgba(255,255,255,.55)";ctx.beginPath();ctx.moveTo(-58.7,-5);ctx.lineTo(-59,8.6);ctx.stroke();
+  ctx.fillStyle="#0e121b";rr(-25,15.4,50,4.4,1.8);ctx.fill();
+  /* wheel arches */
+  ctx.fillStyle="#0a0c12";for(i=0;i<2;i++){ctx.beginPath();ctx.ellipse(WH[i].ox/KX,WH[i].oy,(R+3.4)/KX,R+3.4,0,0,7);ctx.fill()}
+  ctx.strokeStyle="rgba(235,240,250,.55)";ctx.lineWidth=.8;for(i=0;i<2;i++){ctx.beginPath();ctx.ellipse(WH[i].ox/KX,WH[i].oy,(R+4.2)/KX,R+4.2,0,Math.PI*1.02,Math.PI*1.98);ctx.stroke()}
+  /* small bumpers (front + rear): slightly darker pearl lip with a seam above and a thin rubber strip */
+  g=ctx.createLinearGradient(0,13,0,19.8);g.addColorStop(0,pal[1]);g.addColorStop(1,pal[2]);ctx.fillStyle=g;
+  ctx.fillRect(45,13.2,18,7);ctx.fillRect(-70,13.2,23,7);
+  ctx.strokeStyle="rgba(20,30,55,.6)";ctx.lineWidth=.6;ctx.beginPath();ctx.moveTo(44,13.2);ctx.lineTo(63,13.2);ctx.moveTo(-70,13.2);ctx.lineTo(-47,13.2);ctx.stroke();
+  ctx.fillStyle="rgba(255,255,255,.55)";ctx.fillRect(48,13.9,12,.7);ctx.fillRect(-66.5,13.9,13,.7);
+  ctx.fillStyle="#0c1018";rr(49.5,17.7,10.5,1.2,.6);ctx.fill();rr(-65.4,17.7,11.5,1.2,.6);ctx.fill();
+  /* LED nose panel: black display wrapped round the rounded nose, travelling blue dot-matrix glow */
+  rr(46.6,4.6,16,7.8,3.2);ctx.fillStyle="#04060b";ctx.fill();ctx.strokeStyle="rgba(120,160,210,.35)";ctx.lineWidth=.5;ctx.stroke();
+  ctx.globalCompositeOperation="lighter";
+  g=ctx.createRadialGradient(54,8.5,0,54,8.5,9);g.addColorStop(0,"rgba(50,150,255,.45)");g.addColorStop(1,"rgba(50,150,255,0)");ctx.fillStyle=g;ctx.fillRect(44,2,19,12);
+  for(c=0;c<6;c++)for(r=0;r<4;r++){var wv=.5+.5*Math.sin(clock*5-c*.9+r*.4);ctx.fillStyle="rgba(120,205,255,"+(.25+.7*wv).toFixed(2)+")";ctx.beginPath();ctx.arc(48.9+c*2,6.3+r*1.7,.62,0,7);ctx.fill()}
+  ctx.globalCompositeOperation="source-over";
+  /* round headlamp: dark eyelid housing tucked under the windscreen, ring + LED dot */
+  ctx.save();ctx.translate(56.2,.2);ctx.rotate(.1);ctx.fillStyle="#070a10";ctx.beginPath();ctx.ellipse(0,0,4.8,2.6,0,0,7);ctx.fill();
+  ctx.strokeStyle="rgba(120,200,255,.8)";ctx.lineWidth=.5;ctx.beginPath();ctx.ellipse(0,0,3.9,2,0,0,7);ctx.stroke();ctx.restore();
+  ctx.fillStyle="#f2fbff";ctx.beginPath();ctx.arc(57.4,.3,1.25,0,7);ctx.fill();
+  ctx.restore();
+  ctx.save();ctx.translate(-2,-11);ctx.scale(1.194,.975);ctx.translate(6,9);
+  /* door: the body is moulded into a raised pearl bezel that wraps the round glass */
+  ctx.save();ctx.translate(.8,1.2);podEllU(20.4,22.4);ctx.fillStyle="rgba(18,28,52,.24)";ctx.fill();ctx.restore();
+  g=ctx.createLinearGradient(-24,-32,12,14);g.addColorStop(0,pal[0]);g.addColorStop(.5,pal[1]);g.addColorStop(1,pal[2]);
+  podEllU(20,21.8);ctx.fillStyle=g;ctx.fill();ctx.strokeStyle="rgba(30,44,72,.5)";ctx.lineWidth=.6;ctx.stroke();
+  ctx.strokeStyle="rgba(255,255,255,.8)";ctx.lineWidth=.9;ctx.beginPath();ctx.ellipse(-6,-9,20,21.6,0,3.5,4.5);ctx.stroke();
+  ctx.strokeStyle="rgba(40,60,100,.28)";ctx.lineWidth=1.2;ctx.beginPath();ctx.ellipse(-6,-9,19.6,21.2,0,.3,1.9);ctx.stroke();
+  podEllU(19.2,20.7);ctx.fillStyle="#0a1426";ctx.fill();
+  /* glass pane: sky + horizon tint, cabin silhouettes, curved-glass vignette, glare */
+  podDoorU();g=ctx.createLinearGradient(0,-28,0,11);g.addColorStop(0,"#dcecfa");g.addColorStop(.45,"#9cc2e8");g.addColorStop(1,"#2f62ab");ctx.fillStyle=g;ctx.fill();
+  ctx.save();podDoorU();ctx.clip();
+  g=ctx.createRadialGradient(-6,9,1,-6,9,17);g.addColorStop(0,"rgba(70,170,255,.8)");g.addColorStop(1,"rgba(70,170,255,0)");ctx.fillStyle=g;ctx.fillRect(-26,-12,40,30);
+  ctx.fillStyle="rgba(16,40,92,.5)";rr(-17,-3.5,9.5,19,4.2);ctx.fill();ctx.beginPath();ctx.ellipse(-12.2,-6.2,3.5,4.1,0,0,7);ctx.fill();
+  ctx.fillStyle="rgba(16,40,92,.34)";rr(-3.4,-.5,8.5,16,4);ctx.fill();ctx.beginPath();ctx.ellipse(.8,-3.2,3.1,3.7,0,0,7);ctx.fill();
+  ctx.strokeStyle="rgba(255,255,255,.3)";ctx.lineWidth=.6;ctx.beginPath();ctx.moveTo(-24,-1.6);ctx.quadraticCurveTo(-6,-4.6,12,-1.6);ctx.stroke();
+  g=ctx.createRadialGradient(-6,-9,6,-6,-9,19.5);g.addColorStop(0,"rgba(10,30,70,0)");g.addColorStop(1,"rgba(10,30,70,.5)");ctx.fillStyle=g;ctx.fillRect(-26,-30,40,42);
+  g=ctx.createLinearGradient(-22,-26,8,6);g.addColorStop(0,"rgba(255,255,255,.62)");g.addColorStop(.4,"rgba(255,255,255,.12)");g.addColorStop(1,"rgba(255,255,255,0)");
+  ctx.fillStyle=g;ctx.beginPath();ctx.moveTo(-20,-27);ctx.lineTo(-9,-28.4);ctx.lineTo(-19,-1);ctx.lineTo(-25,-3);ctx.closePath();ctx.fill();
+  ctx.fillStyle="rgba(255,255,255,.2)";ctx.beginPath();ctx.moveTo(-4,-27.6);ctx.lineTo(1.4,-26.6);ctx.lineTo(-9,2);ctx.lineTo(-13,1);ctx.closePath();ctx.fill();
+  ctx.restore();
+  ctx.strokeStyle="rgba(255,255,255,.85)";ctx.lineWidth=1;ctx.beginPath();ctx.ellipse(-6,-9,15.6,17.2,0,3.5,4.3);ctx.stroke();
+  podDoorU();ctx.strokeStyle="rgba(70,185,255,.3)";ctx.lineWidth=4.6;ctx.stroke();
+  podDoorU();ctx.strokeStyle="#35b5ff";ctx.lineWidth=1.8;ctx.stroke();
+  podDoorU();ctx.strokeStyle="rgba(215,243,255,.9)";ctx.lineWidth=.5;ctx.stroke();
+  podEllU(19.2,20.7);ctx.strokeStyle="rgba(10,20,40,.6)";ctx.lineWidth=.6;ctx.stroke();
+  ctx.restore();
+  /* slim tail lamp bar on the rear pillar */
+  ctx.fillStyle="#12060a";rr(-64.4,-6.2,3.2,16.2,1.4);ctx.fill();
+  ctx.fillStyle=o.br?"#ff5a5a":"#c8142a";rr(-63.9,-5.4,2.2,14.6,1.1);ctx.fill();
+}
+/* ---------- Crossover: matte-bronze fastback coupe-SUV (sloping rear glass, light-bar nose, black cladding, bronze blade wheels) ---------- */
+function crossoverShell(){
+  ctx.beginPath();ctx.moveTo(-56,19);ctx.lineTo(-59.5,10);ctx.quadraticCurveTo(-61.2,0,-58.6,-4.2);ctx.quadraticCurveTo(-56.8,-6.5,-49,-6.7);
+  ctx.lineTo(24,-6.7);ctx.quadraticCurveTo(41,-7.7,51.5,-4.6);ctx.quadraticCurveTo(59.4,-2,60.7,5.5);ctx.lineTo(60.7,15.5);ctx.quadraticCurveTo(60.7,19,55.5,19);ctx.closePath();
+}
+function xoGlassR(){ctx.beginPath();ctx.moveTo(-45,-6.4);ctx.quadraticCurveTo(-40,-10.5,-34,-15.8);ctx.quadraticCurveTo(-27,-20.8,-16,-21);ctx.lineTo(-14.6,-6.4);ctx.closePath()}
+function xoGlassF(){ctx.beginPath();ctx.moveTo(-12.8,-6.4);ctx.lineTo(-12.8,-21.1);ctx.lineTo(3.4,-21.2);ctx.quadraticCurveTo(8.2,-20.9,11.4,-18);ctx.lineTo(22.6,-6.4);ctx.closePath()}
+function wheelAero(x,y,spin){ /* crossover: bronze aero rim, five tapered blade spokes, drilled disc + caliper */
+  var i,g;
+  ctx.save();ctx.translate(x,y);
+  wheelDisc(R,"#0c0c0e");wheelRing(R-.9,"#2b2b31",.9);
+  ctx.strokeStyle="rgba(255,255,255,.09)";ctx.lineWidth=1;ctx.beginPath();ctx.arc(0,0,R-1.8,Math.PI*1.05,Math.PI*1.55);ctx.stroke();
+  wheelDisc(R-3,"#131419");
+  g=ctx.createRadialGradient(-3,-4,1,0,0,R-4);g.addColorStop(0,"#e0a971");g.addColorStop(.6,"#b87a47");g.addColorStop(1,"#8a5630");
+  wheelDisc(R-4,g);wheelRing(R-4,"#efc08c",.9);wheelRing(R-4.9,"rgba(60,30,10,.45)",.6);
+  wheelDisc(R-5.6,"#15110e");
+  /* brake disc + caliper show through the blades */
+  wheelDisc(R-6.6,"#42434b");wheelRing(R-6.6,"#5d5e68",.7);wheelDisc(R-9.2,"#1c1c22");
+  ctx.strokeStyle="#b8322b";ctx.lineWidth=3;ctx.lineCap="round";ctx.beginPath();ctx.arc(0,0,R-7.4,Math.PI*.12,Math.PI*.62);ctx.stroke();ctx.lineCap="butt";
+  ctx.strokeStyle="rgba(255,255,255,.28)";ctx.lineWidth=.5;ctx.beginPath();ctx.arc(0,0,R-8.3,Math.PI*.18,Math.PI*.56);ctx.stroke();
+  ctx.save();ctx.rotate(spin);
+  for(i=0;i<5;i++){ctx.rotate(Math.PI*2/5);
+    ctx.beginPath();ctx.moveTo(2.4,-1.8);ctx.quadraticCurveTo(R*.4,-3.2,R-5,-3.1);ctx.lineTo(R-5,.3);ctx.quadraticCurveTo(R*.4,-.1,2.4,1.8);ctx.closePath();
+    g=ctx.createLinearGradient(0,-3,0,1.5);g.addColorStop(0,"#e0a971");g.addColorStop(1,"#a8693a");ctx.fillStyle=g;ctx.fill();
+    ctx.strokeStyle="rgba(255,232,200,.6)";ctx.lineWidth=.5;ctx.beginPath();ctx.moveTo(3,-1.4);ctx.quadraticCurveTo(R*.4,-2.7,R-5.3,-2.7);ctx.stroke();
+    ctx.strokeStyle="rgba(40,20,5,.4)";ctx.beginPath();ctx.moveTo(3,1.5);ctx.quadraticCurveTo(R*.4,-.1,R-5.2,.2);ctx.stroke()}
+  ctx.restore();
+  wheelDisc(3.7,"#b87a47");wheelRing(3.7,"#efc08c",.7);wheelDisc(2.5,"#0f0c0a");
+  ctx.fillStyle="#d09660";for(i=0;i<5;i++){var a=spin+i*Math.PI*2/5;ctx.beginPath();ctx.arc(Math.cos(a)*3.1,Math.sin(a)*3.1,.35,0,7);ctx.fill()}
+  ctx.restore();
+}
+function drawCrossover(o){
+  var i,g,pal=o.pal;
+  /* fastback greenhouse: matte roof sweeping down to the tail */
+  ctx.beginPath();ctx.moveTo(-52,-5.6);ctx.quadraticCurveTo(-47,-9,-37,-17.4);ctx.quadraticCurveTo(-27,-24.6,-12,-24.6);
+  ctx.lineTo(4,-24.4);ctx.quadraticCurveTo(10,-24,14.4,-20);ctx.lineTo(29,-5.6);ctx.closePath();
+  g=ctx.createLinearGradient(0,-25,0,-5);g.addColorStop(0,pal[0]);g.addColorStop(.5,pal[1]);g.addColorStop(1,pal[2]);ctx.fillStyle=g;ctx.fill();
+  ctx.strokeStyle="rgba(8,6,4,.85)";ctx.lineWidth=.8;ctx.stroke();
+  /* glass */
+  g=ctx.createLinearGradient(0,-22,0,-6);g.addColorStop(0,"#7d8da3");g.addColorStop(.4,"#222a38");g.addColorStop(1,"#080b11");ctx.fillStyle=g;
+  xoGlassR();ctx.fill();xoGlassF();ctx.fill();
+  /* gloss-black B-pillar */
+  ctx.fillStyle="#0a0b10";ctx.beginPath();ctx.moveTo(-14.8,-6.4);ctx.lineTo(-16.4,-21.2);ctx.lineTo(-12.8,-21.2);ctx.lineTo(-12.8,-6.4);ctx.closePath();ctx.fill();
+  ctx.strokeStyle="#0a0b10";ctx.lineWidth=.9;xoGlassR();ctx.stroke();xoGlassF();ctx.stroke();
+  /* sky reflection + soft streaks */
+  ctx.save();xoGlassF();ctx.clip();
+  g=ctx.createLinearGradient(-13,-21,23,-6);g.addColorStop(0,"rgba(190,215,245,.30)");g.addColorStop(.45,"rgba(190,215,245,.05)");g.addColorStop(1,"rgba(190,215,245,0)");ctx.fillStyle=g;ctx.fillRect(-14,-22,40,17);
+  ctx.restore();
+  ctx.save();xoGlassR();ctx.clip();
+  g=ctx.createLinearGradient(-45,-21,-14,-6);g.addColorStop(0,"rgba(190,215,245,.26)");g.addColorStop(.5,"rgba(190,215,245,.04)");g.addColorStop(1,"rgba(190,215,245,0)");ctx.fillStyle=g;ctx.fillRect(-46,-22,33,17);
+  ctx.restore();
+  ctx.fillStyle="rgba(255,255,255,.12)";ctx.beginPath();ctx.moveTo(-6,-6.6);ctx.lineTo(1,-21);ctx.lineTo(4.4,-21);ctx.lineTo(-2.6,-6.6);ctx.fill();
+  ctx.beginPath();ctx.moveTo(-31,-8);ctx.lineTo(-24,-18.6);ctx.lineTo(-21.6,-18.6);ctx.lineTo(-28.4,-8);ctx.fill();
+  /* bronze window surround on the front glass + roof sheen + belt-line trim */
+  ctx.strokeStyle="rgba(222,170,115,.8)";ctx.lineWidth=.55;ctx.beginPath();ctx.moveTo(-45.6,-6.7);ctx.quadraticCurveTo(-40.6,-10.7,-34.4,-16);ctx.quadraticCurveTo(-27,-21.2,-16,-21.4);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(-12.4,-21.5);ctx.lineTo(3.4,-21.6);ctx.quadraticCurveTo(8.4,-21.3,11.8,-18.2);ctx.lineTo(23.4,-6.7);ctx.stroke();
+  ctx.strokeStyle="rgba(255,240,220,.3)";ctx.lineWidth=.9;ctx.beginPath();ctx.moveTo(-36,-18.4);ctx.quadraticCurveTo(-27,-24.2,-12,-24.2);ctx.lineTo(3,-24.1);ctx.quadraticCurveTo(8.6,-23.7,12.6,-20.4);ctx.stroke();
+  /* roof-end spoiler lip */
+  ctx.fillStyle=pal[2];ctx.beginPath();ctx.moveTo(-44.6,-8.4);ctx.lineTo(-40,-12.6);ctx.lineTo(-38.6,-12);ctx.lineTo(-42.6,-7.4);ctx.closePath();ctx.fill();
+  /* shell (matte: soft gradient, no hard specular) */
+  g=ctx.createLinearGradient(0,-8,0,19);g.addColorStop(0,pal[0]);g.addColorStop(.33,pal[1]);g.addColorStop(1,pal[2]);
+  crossoverShell();ctx.fillStyle=g;ctx.fill();
+  ctx.save();crossoverShell();ctx.clip();
+  /* soft horizontal light roll-off across the flank */
+  g=ctx.createLinearGradient(-60,0,60,0);g.addColorStop(0,"rgba(30,15,0,.22)");g.addColorStop(.3,"rgba(255,235,205,.10)");g.addColorStop(.7,"rgba(255,235,205,.08)");g.addColorStop(1,"rgba(30,15,0,.18)");
+  ctx.fillStyle=g;ctx.fillRect(-62,-9,124,30);
+  /* shoulder + character lines */
+  g=ctx.createLinearGradient(-58,0,56,0);g.addColorStop(0,"rgba(255,240,220,0)");g.addColorStop(.2,"rgba(255,240,220,.38)");g.addColorStop(.75,"rgba(255,240,220,.32)");g.addColorStop(1,"rgba(255,240,220,.05)");
+  ctx.strokeStyle=g;ctx.lineWidth=1.1;ctx.beginPath();ctx.moveTo(-58,-3.4);ctx.quadraticCurveTo(0,-5,30,-3.8);ctx.quadraticCurveTo(46,-3,56,.2);ctx.stroke();
+  ctx.strokeStyle="rgba(20,10,0,.3)";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(-58,7.8);ctx.quadraticCurveTo(0,6,56,9.8);ctx.stroke();
+  ctx.strokeStyle="rgba(255,235,210,.16)";ctx.lineWidth=.8;ctx.beginPath();ctx.moveTo(-58,8.9);ctx.quadraticCurveTo(0,7.1,56,11);ctx.stroke();
+  /* door seams + flush handles */
+  ctx.strokeStyle=pal[3];ctx.lineWidth=.7;ctx.beginPath();ctx.moveTo(-37,-5);ctx.lineTo(-38,12.5);ctx.moveTo(-13.5,-5.4);ctx.lineTo(-14,13);ctx.moveTo(19,-5.2);ctx.lineTo(19.6,11.5);ctx.stroke();
+  ctx.fillStyle="rgba(0,0,0,.5)";rr(-8.5,-1.8,6,1.2,.6);ctx.fill();rr(-32,-1.8,6,1.2,.6);ctx.fill();
+  ctx.fillStyle="rgba(255,235,210,.22)";ctx.fillRect(-8.2,-.5,5.4,.35);ctx.fillRect(-31.7,-.5,5.4,.35);
+  /* black cladding: slim sill with copper pin-line, arch flares, rear valance */
+  ctx.fillStyle="#0b0c11";ctx.beginPath();ctx.moveTo(-27,19.5);ctx.lineTo(-25.4,15);ctx.lineTo(26,14.8);ctx.lineTo(28,19.5);ctx.closePath();ctx.fill();
+  ctx.strokeStyle="#c98a52";ctx.lineWidth=.45;ctx.beginPath();ctx.moveTo(-25.2,15.2);ctx.lineTo(25.8,15);ctx.stroke();
+  rr(-62,13.6,12,7,2);ctx.fillStyle="#0b0c11";ctx.fill();
+  ctx.fillStyle="#d9a06a";ctx.fillRect(-61,15.4,10,.5);
+  ctx.strokeStyle="#0b0c11";ctx.lineWidth=1.5;for(i=0;i<2;i++){ctx.beginPath();ctx.ellipse(WH[i].ox/KX,WH[i].oy,(R+4.4)/KX,R+4.4,0,Math.PI*.95,Math.PI*2.05);ctx.stroke()}
+  ctx.strokeStyle="rgba(235,190,140,.35)";ctx.lineWidth=.5;for(i=0;i<2;i++){ctx.beginPath();ctx.ellipse(WH[i].ox/KX,WH[i].oy,(R+5.4)/KX,R+5.4,0,Math.PI*1.08,Math.PI*1.92);ctx.stroke()}
+  ctx.fillStyle="#08090d";for(i=0;i<2;i++){ctx.beginPath();ctx.ellipse(WH[i].ox/KX,WH[i].oy,(R+3.4)/KX,R+3.4,0,0,7);ctx.fill()}
+  /* front fascia: low black grille with hex mesh, bronze accent above it */
+  ctx.fillStyle="#0b0c11";rr(47,10.6,15,10,3);ctx.fill();
+  ctx.fillStyle="#454a57";var hr=0;for(var yy=13;yy<19.6;yy+=2.4,hr++)for(var xx=49.4+(hr%2)*1.3;xx<60.6;xx+=2.6){ctx.beginPath();ctx.arc(xx,yy,.62,0,7);ctx.fill()}
+  ctx.strokeStyle="#d9a06a";ctx.lineWidth=.8;ctx.beginPath();ctx.moveTo(47,10);ctx.lineTo(60.8,11);ctx.stroke();
+  ctx.fillStyle="#d9a06a";ctx.fillRect(52,19.1,8.5,.6);
+  /* tail lamp: dark housing + red lens wrapping the hatch corner (clipped to the body) */
+  ctx.fillStyle="#120608";ctx.beginPath();ctx.moveTo(-61.5,6.4);ctx.lineTo(-61.5,-3.8);ctx.lineTo(-55,-8);ctx.lineTo(-52.6,-6.6);ctx.lineTo(-57.4,-2);ctx.lineTo(-57,6.4);ctx.closePath();ctx.fill();
+  ctx.fillStyle=o.br?"#ff5a5a":"#c8142a";ctx.beginPath();ctx.moveTo(-61.5,5.2);ctx.lineTo(-61.5,-3);ctx.lineTo(-55.4,-7);ctx.lineTo(-53.8,-6);ctx.lineTo(-58.4,-1.6);ctx.lineTo(-58.2,5.2);ctx.closePath();ctx.fill();
+  ctx.fillStyle=o.br?"#ffd2c8":"#ff7a86";ctx.beginPath();ctx.moveTo(-61.5,-1.2);ctx.lineTo(-61.5,-2.8);ctx.lineTo(-56.6,-6.5);ctx.lineTo(-56,-5.9);ctx.closePath();ctx.globalAlpha=.7;ctx.fill();ctx.globalAlpha=1;
+  ctx.restore();
+  /* mirror: body-coloured cap on a dark stalk */
+  ctx.fillStyle="#14110f";ctx.beginPath();ctx.moveTo(21.4,-7.4);ctx.lineTo(24.8,-8.6);ctx.lineTo(25.4,-7.2);ctx.lineTo(22.2,-6.4);ctx.closePath();ctx.fill();
+  rr(21.5,-11.2,7,3.4,1.7);ctx.fillStyle=pal[1];ctx.fill();ctx.strokeStyle="#d09660";ctx.lineWidth=.5;ctx.stroke();
+  ctx.fillStyle="rgba(255,235,210,.3)";rr(22.6,-10.7,4.2,.8,.4);ctx.fill();
+  /* headlamp: slim angular housing along the hood edge, LED strip + projector dot */
+  ctx.fillStyle="#06080d";ctx.beginPath();ctx.moveTo(44.4,-4.2);ctx.quadraticCurveTo(52.4,-6.4,56.6,-3.4);ctx.quadraticCurveTo(60.2,-.8,60.2,2.4);ctx.lineTo(55.8,.6);ctx.lineTo(44.8,-1.8);ctx.closePath();ctx.fill();
+  ctx.strokeStyle="rgba(230,170,115,.7)";ctx.lineWidth=.5;ctx.beginPath();ctx.moveTo(44.4,-4.5);ctx.quadraticCurveTo(52.6,-6.8,56.9,-3.6);ctx.stroke();
+  ctx.strokeStyle="#f4f8ff";ctx.lineWidth=.9;ctx.lineCap="round";ctx.beginPath();ctx.moveTo(46.4,-2.9);ctx.quadraticCurveTo(53.6,-4.2,57.4,-1.4);ctx.stroke();
+  ctx.fillStyle="#fffdf0";ctx.beginPath();ctx.arc(55.4,-.6,1.15,0,7);ctx.fill();
+  /* light-bar down the nose */
+  ctx.strokeStyle="#eaf3ff";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(60.1,4);ctx.lineTo(60.4,8.8);ctx.stroke();ctx.lineCap="butt";
 }
 /* ---------- Bus: short yellow coach (flat raked windscreen, tinted window band, orange stripe) ---------- */
 function busShell(){
@@ -1499,7 +1891,7 @@ function drawWheel(x,y,spin,ty,w){
   }
   ctx.restore();
 }
-function shellP(ty){if(ty===1)sportShell();else if(ty===5)busShell();else if(ty===6)roadsterShell();else if(ty===7)muscleShell();else bodyPath()}
+function shellP(ty){if(ty===1)sportShell();else if(ty===5)busShell();else if(ty===6)roadsterShell();else if(ty===7)muscleShell();else if(ty===8)crossoverShell();else if(ty===9)podShell();else if(ty===10)modelTShell();else if(ty===11)hyperShell();else bodyPath()}
 function drawDent(d){
   ctx.save();ctx.translate(d.x,d.y);ctx.rotate(d.r);ctx.scale(1.3,.85);
   var s=d.s,g=ctx.createRadialGradient(-s*.12,s*.1,0,0,0,s);
@@ -1531,7 +1923,7 @@ function leakStain(D){
   if(D.leakO){for(i=0;i<3;i++){var x2=-14+i*5;g=ctx.createLinearGradient(0,8,0,19);g.addColorStop(0,"rgba(10,8,6,0)");g.addColorStop(1,"rgba(10,8,6,.75)");ctx.strokeStyle=g;ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(x2,8);ctx.lineTo(x2+(i-1)*.7,19);ctx.stroke()}}
 }
 function bumpHole(ty,front,st,seed){
-  var sp=ty===1,x0=front?47:-62,w=15,y0=sp?8:7,g;
+  var sp=ty===1,x0=front?47:(ty===9?-68:-62),w=15,y0=sp?8:7,g;
   ctx.save();shellP(ty);ctx.clip();
   ctx.fillStyle="#07080b";ctx.fillRect(x0,y0,w,21-y0);
   g=ctx.createLinearGradient(0,11,0,15);g.addColorStop(0,"#9aa1ad");g.addColorStop(.5,"#565b66");g.addColorStop(1,"#2a2d35");
@@ -1554,7 +1946,7 @@ function bumpPiece(o,front,st,seed){
   ctx.strokeStyle="rgba(0,0,10,.7)";ctx.lineWidth=.7;ctx.beginPath();ctx.moveTo(8,1);ctx.lineTo(7,4.2);ctx.lineTo(9,6);ctx.stroke();
   ctx.restore();
 }
-function doorRects(ty){return ty===5?[{x0:5,x1:20,y0:-24,y1:13,hx:20}]:ty===1?[{x0:-7.5,x1:17,y0:-4.4,y1:13,hx:17}]:ty===6?[{x0:-16,x1:14,y0:-4.4,y1:13,hx:14}]:ty===7?[{x0:-26,x1:14,y0:-4.4,y1:13,hx:14}]:[{x0:-9.5,x1:16,y0:-4.4,y1:13,hx:16},{x0:-32,x1:-9.5,y0:-4.4,y1:13,hx:-32}]}
+function doorRects(ty){return ty===11?[{x0:-7.5,x1:21,y0:-4.4,y1:13,hx:21}]:ty===10?[{x0:-12,x1:12,y0:-4.4,y1:11,hx:12},{x0:-36,x1:-12,y0:-4.4,y1:11,hx:-36}]:ty===9?[{x0:-26,x1:12,y0:-4.4,y1:13,hx:12}]:ty===8?[{x0:-13.5,x1:19,y0:-4.4,y1:13,hx:19},{x0:-37,x1:-13.5,y0:-4.4,y1:13,hx:-37}]:ty===5?[{x0:5,x1:20,y0:-24,y1:13,hx:20}]:ty===1?[{x0:-7.5,x1:17,y0:-4.4,y1:13,hx:17}]:ty===6?[{x0:-16,x1:14,y0:-4.4,y1:13,hx:14}]:ty===7?[{x0:-26,x1:14,y0:-4.4,y1:13,hx:14}]:[{x0:-9.5,x1:16,y0:-4.4,y1:13,hx:16},{x0:-32,x1:-9.5,y0:-4.4,y1:13,hx:-32}]}
 function doorHole(ty,dr,front){
   var g,w=dr.x1-dr.x0;
   ctx.save();shellP(ty);ctx.clip();
@@ -1608,7 +2000,7 @@ function drawFlames(tm){
 }
 function hoodPanel(o,D,seed){
   var pal=o.pal,st=D.hood,g,tm=clock;
-  ctx.save();ctx.translate(31.5,-5.3);
+  ctx.save();ctx.translate(o.ty===10?15:31.5,o.ty===10?-8.1:-5.3);
   function seg(x0,x1){ /* a slice of the curved bonnet plate */
     ctx.beginPath();ctx.moveTo(x0,-.2+x0*.004*x0*.06);
     var yt=function(x){return x<13?-.3-.04*x:(x<21?-.8+(x-13)*.6:4+(x-21)*.62)};
@@ -1691,6 +2083,22 @@ function glassDamage(o,D){
     if(D.win){ctx.save();ctx.beginPath();ctx.moveTo(-44,-6.4);ctx.lineTo(-35.5,-17.6);ctx.lineTo(-29.5,-17.6);ctx.lineTo(-29.5,-6.4);ctx.closePath();ctx.clip();missingPane(-45,-29,-18,-6,sd);ctx.restore()}
     if(D.doorA){ctx.save();ctx.beginPath();ctx.moveTo(-27,-5.8);ctx.lineTo(-27.5,-17.5);ctx.lineTo(1,-18.1);ctx.lineTo(14,-17.4);ctx.lineTo(23,-5.8);ctx.closePath();ctx.clip();doorGlass(D.doorA,-27,23,-18.2,-5.8,sd+11,-4,-12,9);ctx.restore()}
     if(D.ws){ctx.save();ctx.beginPath();ctx.moveTo(14,-17.4);ctx.lineTo(23,-5.8);ctx.lineTo(10,-5.8);ctx.closePath();ctx.clip();crackPattern(15,-11,9,D.ws,sd+3);ctx.restore()}
+  }else if(ty===11){
+    ctx.save();hyperGlass();ctx.clip();
+    if(D.win)missingPane(-30,-8,-17,-5.5,sd);
+    if(D.doorA)doorGlass(D.doorA,-7.5,21,-16.4,-5.5,sd+11,5,-11,9);
+    if(D.ws)crackPattern(12,-9.4,13,D.ws,sd+3);
+    ctx.restore();
+  }else if(ty===10){
+    if(D.ws){ctx.save();ctx.beginPath();ctx.moveTo(12.2,-8.4);ctx.lineTo(9.6,-31);ctx.lineTo(11.6,-31.2);ctx.lineTo(15,-8.4);ctx.closePath();ctx.clip();crackPattern(12.5,-19,12,D.ws,sd+3);ctx.restore()}
+  }else if(ty===9){
+    if(D.win){ctx.save();podGlassD();ctx.clip();ctx.beginPath();ctx.rect(-40,-34,22,30);ctx.clip();missingPane(-40,-18,-30,-7,sd);ctx.restore()}
+    if(D.doorA){ctx.save();podDoor();ctx.clip();doorGlass(D.doorA,-24,20,-30.5,8.6,sd+11,-2,-12,11);ctx.restore()}
+    if(D.ws){ctx.save();podGlassD();ctx.clip();ctx.beginPath();ctx.rect(14,-34,40,34);ctx.clip();crackPattern(30,-14,9,D.ws,sd+3);ctx.restore()}
+  }else if(ty===8){
+    if(D.win){ctx.save();xoGlassR();ctx.clip();missingPane(-46,-14,-21.4,-6.4,sd);ctx.restore()}
+    if(D.doorA){ctx.save();xoGlassF();ctx.clip();doorGlass(D.doorA,-12.8,23,-21.4,-6.4,sd+11,4,-13,9);ctx.restore()}
+    if(D.ws){ctx.save();ctx.beginPath();ctx.moveTo(11.4,-18);ctx.lineTo(22.6,-6.4);ctx.lineTo(8,-6.4);ctx.closePath();ctx.clip();crackPattern(14,-11,9,D.ws,sd+3);ctx.restore()}
   }else if(ty===6){
     if(D.ws){ctx.save();ctx.beginPath();ctx.moveTo(19.5,-5.6);ctx.lineTo(6,-14.2);ctx.lineTo(8.6,-14.6);ctx.lineTo(23.5,-5.6);ctx.closePath();ctx.clip();
       crackPattern(15,-10,6,D.ws,sd+3);ctx.restore()}
@@ -1717,6 +2125,10 @@ function lensDamage(o,D,hlf){
   ctx.fillStyle="rgba(14,16,22,"+a.toFixed(2)+")";ctx.beginPath();
   if(o.ty===5){ctx.moveTo(54.4,4.2);ctx.lineTo(60,4.2);ctx.lineTo(60,9);ctx.lineTo(54.4,11);ctx.closePath();ctx.fill()}
   else if(o.ty===7){ctx.arc(56.6,1.6,3.2,0,7);ctx.fill()}
+  else if(o.ty===10){ctx.rect(49,-7.5,9,10);ctx.fill()}
+  else if(o.ty===11){ctx.moveTo(42,-1.6);ctx.lineTo(56.4,3);ctx.lineTo(57.4,5.4);ctx.lineTo(45,1.8);ctx.closePath();ctx.fill()}
+  else if(o.ty===9){ctx.arc(52.4,-1.6,3.4,0,7);ctx.fill()}
+  else if(o.ty===8){ctx.moveTo(44.6,-1.9);ctx.lineTo(55.4,.5);ctx.lineTo(55.2,1.7);ctx.lineTo(46.2,-.2);ctx.closePath();ctx.fill()}
   else if(sp){ctx.moveTo(44.4,-2.4);ctx.lineTo(55,.1);ctx.lineTo(54.8,1.7);ctx.lineTo(46.4,.2);ctx.closePath();ctx.fill();ctx.beginPath();ctx.arc(57.2,6.4,2.3,0,7);ctx.fill()}
   else{ctx.moveTo(47.6,-1.3);ctx.lineTo(56.7,.6);ctx.lineTo(56.4,2.8);ctx.lineTo(48.2,1.9);ctx.closePath();ctx.fill()}
   if(D.hl===2){ctx.strokeStyle="rgba(235,246,255,.7)";ctx.lineWidth=.5;ctx.beginPath();ctx.moveTo(sp?47:49,-.8);ctx.lineTo(sp?51:53,1);ctx.lineTo(sp?54:56,-.2);ctx.moveTo(sp?50:52,-1.2);ctx.lineTo(sp?50.6:52.6,2);ctx.stroke()}
@@ -1745,7 +2157,7 @@ function dmgBody(o,D,hlf){
   for(i=0;i<D.dents.length;i++)drawDent(D.dents[i]);
   for(i=0;i<D.scrs.length;i++)drawScr(D.scrs[i]);
   if(D.leakC||D.leakO)leakStain(D);
-  ctx.fillStyle=sp?"#0a0b10":"#12121a";for(i=0;i<2;i++){ctx.beginPath();ctx.ellipse(WH[i].ox/KX,WH[i].oy,(R+3.4)/KX,R+3.4,0,0,7);ctx.fill()}
+  ctx.fillStyle=sp?"#0a0b10":"#12121a";for(i=0;i<(ty===10?0:2);i++){ctx.beginPath();ctx.ellipse(WH[i].ox/KX,WH[i].oy,(R+3.4)/KX,R+3.4,0,0,7);ctx.fill()}
   if(sp){ctx.strokeStyle="rgba(150,185,235,.3)";ctx.lineWidth=.9;for(i=0;i<2;i++){ctx.beginPath();ctx.ellipse(WH[i].ox/KX,WH[i].oy,(R+3.9)/KX,R+3.9,0,Math.PI*1.05,Math.PI*1.95);ctx.stroke()}}
   ctx.restore();
   /* holes: bumpers, doors, engine bay */
@@ -1754,7 +2166,7 @@ function dmgBody(o,D,hlf){
   var dr=doorRects(ty);
   if(D.doorA)doorHole(ty,dr[0],true);
   if(dr[1]&&D.doorB)doorHole(ty,dr[1],false);
-  if(D.hood&&ty!==5){ctx.save();shellP(ty);ctx.clip();bayPath();ctx.fillStyle="#07080b";ctx.fill();ctx.restore();drawEngine(D,tm)}
+  if(D.hood&&ty!==5){ctx.save();shellP(ty);ctx.clip();if(ty===10)ctx.translate(-18,-1);else if(ty===11)ctx.translate(0,3);bayPath();ctx.fillStyle="#07080b";ctx.fill();ctx.restore();ctx.save();if(ty===10)ctx.translate(-18,-1);else if(ty===11)ctx.translate(0,3);drawEngine(D,tm);ctx.restore()}
   glassDamage(o,D);
   lensDamage(o,D,hlf);
   /* loose parts on top */
@@ -1764,7 +2176,7 @@ function dmgBody(o,D,hlf){
   if(dr[1]&&D.doorB===1)doorPanel(o,dr[1],false,sd+2);
   if(ty!==5&&(D.hood===1||D.hood===2))hoodPanel(o,D,sd);
   if(D.exh===1)exhaustHang(o,sd);
-  if(D.fire){if(ty===5){ctx.save();ctx.translate(12,13);drawFlames(tm);ctx.restore()}else drawFlames(tm)}
+  if(D.fire){if(ty===5){ctx.save();ctx.translate(12,13);drawFlames(tm);ctx.restore()}else if(ty===10){ctx.save();ctx.translate(-14,0);drawFlames(tm);ctx.restore()}else if(ty===11){ctx.save();ctx.translate(0,3);drawFlames(tm);ctx.restore()}else drawFlames(tm)}
 }
 /* debris */
 function drawDb(){
@@ -1811,9 +2223,9 @@ var DR={laugh:{d:1.9,p:2,w:1,l:0},point:{d:2.7,p:3,w:1,l:.75},grin:{d:1.7,p:1,w:
         look:{d:2.3,p:2,w:1,l:.55},shake:{d:2.4,p:3,w:1,l:0},recover:{d:3.4,p:4,w:1,l:0}};
 /* side window of each body type (car-local units, same space as the body art) and where the driver's head sits */
 var DW0=[[-8.5,-6.8],[-8.5,-22.4],[9,-22],[13,-21.6],[16.5,-19.3],[18.5,-16.5],[21,-12.5],[23.5,-6.8]];
-var DSEAT=[[6,-11.6,4.5],[-4,-10.5,3.7],[6,-14,5.1],[17.5,-12.2,4.4],[6,-12.4,4.5],[39,-19,5.2],[-3,-13,4.6],[4,-12.6,4.2]];
+var DSEAT=[[6,-11.6,4.5],[-4,-10.5,3.7],[6,-14,5.1],[17.5,-12.2,4.4],[6,-12.4,4.5],[39,-19,5.2],[-3,-13,4.6],[4,-12.6,4.2],[4,-13.2,4.3],[-6,-11.5,4.6],[-2,-17.5,4.6],[-6,-10.4,3.7]];
 var DWIN=CARTY.map(function(T,i){
-  var pts=i===7?[[-27,-5.5],[-27.5,-17.5],[1,-18.1],[14,-17.4],[23,-5.5]]:i===6?[[-19,-40],[22,-40],[22,-5],[-19,-5]]:i===5?[[30,-28.5],[46,-28.5],[55,-9.5],[30,-9]]:i===1?[[-22,-6.4],[-24,-12.6],[-20,-14.9],[-8,-14.9],[0,-14.5],[6.5,-10.8],[10,-9.8],[10,-6.4]]
+  var pts=i===11?[[-28,-7],[-26,-12.6],[-19,-14.8],[-6,-15.4],[3,-14.5],[9,-11.5],[16,-7]]:i===10?[[-14,-31],[12,-31],[12,-7],[-14,-7]]:i===9?POD_DW:i===8?[[-12.8,-6.4],[-12.8,-21.1],[3.4,-21.2],[8.2,-20.9],[11.4,-18],[22.6,-6.4]]:i===7?[[-27,-5.5],[-27.5,-17.5],[1,-18.1],[14,-17.4],[23,-5.5]]:i===6?[[-19,-40],[22,-40],[22,-5],[-19,-5]]:i===5?[[30,-28.5],[46,-28.5],[55,-9.5],[30,-9]]:i===1?[[-22,-6.4],[-24,-12.6],[-20,-14.9],[-8,-14.9],[0,-14.5],[6.5,-10.8],[10,-9.8],[10,-6.4]]
     :DW0.map(function(p){return [31+(p[0]-31)*T.sx,-5+(p[1]+5)*T.sy]});
   var x0=1e9,x1=-1e9,y0=1e9,y1=-1e9;
   pts.forEach(function(p){x0=Math.min(x0,p[0]);x1=Math.max(x1,p[0]);y0=Math.min(y0,p[1]);y1=Math.max(y1,p[1])});
@@ -1985,7 +2397,7 @@ function dvDraw0(dv,ty,pal){
   }
   ctx.restore();
   /* the glass: the pane sinks into the door as the window winds down */
-  if(wd<.98&&ty!==6){
+  if(wd<.98&&ty!==6&&ty!==10){
     var P2=W0.pts,yp=W0.t+wd*(W0.b-W0.t);
     ctx.save();ctx.beginPath();ctx.moveTo(P2[0][0],P2[0][1]);for(i=1;i<P2.length;i++)ctx.lineTo(P2[i][0],P2[i][1]);ctx.closePath();ctx.clip();
     ctx.fillStyle="rgba(120,175,225,.4)";ctx.fillRect(W0.x0-1,yp,W0.x1-W0.x0+2,W0.b-yp+1);
@@ -2030,12 +2442,12 @@ function drawCar(c,o){
     ctx.fillStyle=fg;ctx.beginPath();ctx.moveTo(-61,9.5);ctx.quadraticCurveTo(-62-len*.5,11.5,-62-len,14.5+fl*2);ctx.quadraticCurveTo(-62-len*.5,17.5,-61,19.5);ctx.closePath();ctx.fill();
     ctx.fillStyle=rgba(bc.i,.95*bc.a);ctx.beginPath();ctx.moveTo(-61,11.8);ctx.quadraticCurveTo(-62-len*.3,13,-62-len*.55,14.5+fl);ctx.quadraticCurveTo(-62-len*.3,16,-61,17.2);ctx.closePath();ctx.fill();
   }
-  var ly=o.ty===5?6.5:0;ctx.globalCompositeOperation="lighter";ctx.save();ctx.translate(0,ly);
+  var ly=o.ty===5?6.5:o.ty===10?-4:o.ty===11?3:0;ctx.globalCompositeOperation="lighter";ctx.save();ctx.translate(0,ly);
   var bg=ctx.createLinearGradient(59,0,150,0);bg.addColorStop(0,"rgba(255,240,170,"+(.24*hlf).toFixed(3)+")");bg.addColorStop(1,"rgba(255,240,170,0)");
   ctx.fillStyle=bg;ctx.beginPath();ctx.moveTo(58,1);ctx.lineTo(150,-18);ctx.lineTo(150,14);ctx.lineTo(58,5);ctx.fill();ctx.restore();
   ctx.globalCompositeOperation="source-over";
-  if(!(D&&D.exh)){rr(-63,12.5,8,4,2);ctx.fillStyle="#bfc5d0";ctx.fill();ctx.fillStyle="#111";ctx.beginPath();ctx.arc(-61.5,14.5,1.5,0,7);ctx.fill();}
-  if(o.ty===1)drawSport(o);else if(o.ty===5)drawBus(o);else if(o.ty===6)drawRoadster(o);else if(o.ty===7)drawMuscle(o);else{
+  if(!(D&&D.exh)&&o.ty!==8&&o.ty!==9){rr(-63,12.5,8,4,2);ctx.fillStyle="#bfc5d0";ctx.fill();ctx.fillStyle="#111";ctx.beginPath();ctx.arc(-61.5,14.5,1.5,0,7);ctx.fill();}
+  if(o.ty===1)drawSport(o);else if(o.ty===5)drawBus(o);else if(o.ty===6)drawRoadster(o);else if(o.ty===7)drawMuscle(o);else if(o.ty===8)drawCrossover(o);else if(o.ty===9)drawPod(o);else if(o.ty===10)drawModelT(o);else if(o.ty===11)drawHyper(o);else{
   var T=CARTY[o.ty||0];
   ctx.save();ctx.translate(31,-5);ctx.scale(T.sx,T.sy);ctx.translate(-31,5);
   ghPath();ctx.fillStyle="#0d1015";ctx.fill();ctx.strokeStyle="#0d1015";ctx.lineWidth=1.6;ctx.stroke();
@@ -2063,12 +2475,12 @@ function drawCar(c,o){
   ctx.fillStyle="#10131a";ctx.beginPath();ctx.moveTo(46,-1.6);ctx.lineTo(56.5,.4);ctx.quadraticCurveTo(58.2,1.4,56,3.2);ctx.lineTo(48.5,1.9);ctx.closePath();ctx.fill();
   ctx.fillStyle="#fffbe0";ctx.beginPath();ctx.moveTo(48,-.5);ctx.lineTo(55.2,1);ctx.lineTo(55,2.2);ctx.lineTo(49,1);ctx.closePath();ctx.fill();
   }
-  dvDraw(o.dv,o.ty||0,o.pal);
+  dvDraw(o.dv,o.ty||0,o.ty===10?DVPAL10:o.pal);
   ctx.globalCompositeOperation="lighter";ctx.save();ctx.translate(0,ly);var hg=ctx.createRadialGradient(56,1.5,0,56,1.5,14);hg.addColorStop(0,"rgba(255,240,150,"+(.55*hlf).toFixed(3)+")");hg.addColorStop(1,"rgba(255,240,150,0)");
   ctx.fillStyle=hg;ctx.beginPath();ctx.arc(56,1.5,14,0,7);ctx.fill();ctx.restore();
   if(o.br){var tg=ctx.createRadialGradient(-58,2,0,-58,2,13);tg.addColorStop(0,"rgba(255,40,40,.85)");tg.addColorStop(1,"rgba(255,40,40,0)");ctx.fillStyle=tg;ctx.beginPath();ctx.arc(-58,2,13,0,7);ctx.fill()}
   ctx.globalCompositeOperation="source-over";
-  if(o.ty!==1){rr(-60,-3,3,9,1.4);ctx.fillStyle=o.br?"#ff5a5a":"#c8142a";ctx.fill();}
+  if(o.ty!==1&&o.ty!==8&&o.ty!==9&&o.ty!==10&&o.ty!==11){rr(-60,-3,3,9,1.4);ctx.fillStyle=o.br?"#ff5a5a":"#c8142a";ctx.fill();}
   drawAcc(o.ty||0,o.pal);
   if(D)dmgBody(o,D,hlf);
   ctx.restore();
@@ -2410,7 +2822,7 @@ function updW(d){
       if(p.k===2){
         var spd=Math.min(2700,Math.hypot(p.vx,p.vy)+1800*h),hd=Math.atan2(p.vy,p.vx);
         if(p.tg!==null){var t=isHum(p.tg)?humCar(p.tg):AI[p.tg];
-          if(t&&!t.fin&&!isCloaked(p.tg)){var want=Math.atan2(t.y-6-p.y,t.x-p.x),df=Math.atan2(Math.sin(want-hd),Math.cos(want-hd)),mt=3.6*h;hd+=Math.max(-mt,Math.min(mt,df))}else{if(t&&!t.fin&&isHum(p.tg))flipBy(p.tg,"👻 MISSILE LOST YOU");p.tg=null}}
+          if(t&&!t.fin&&!isCloaked(p.tg)){var want=Math.atan2(t.y-6-p.y,t.x-p.x),df=Math.atan2(Math.sin(want-hd),Math.cos(want-hd)),mt=3.6*h;hd+=Math.max(-mt,Math.min(mt,df))}else{if(t&&!t.fin&&isHum(p.tg))flipBy(p.tg,"👻 MISSILE LOST YOU");var nt=(p.vx>=0?findAhead:findBehind)({id:p.o,x:p.x,y:p.y},1800);p.tg=nt?nt.id:null;p.nr=0;p.dg=0;p.md=undefined}}
         p.vx=Math.cos(hd)*spd;p.vy=Math.sin(hd)*spd;
       }
       p.x+=p.vx*h;p.y+=p.vy*h;
@@ -2418,9 +2830,9 @@ function updW(d){
       if(p.age>p.life){if(p.k===2&&p.tg!==null&&p.nr&&!p.dg){p.dg=1;dvDodge(p.tg)}p.dead=1;boom(p.x,p.y,false,p.k===3?"#5ff7ff":null);continue}
       if(p.tg===null){var gy=groundY(p.x);if(p.y>gy-2&&p.y<gy+TH+6){p.dead=1;boom(p.x,gy-4,false,p.k===3?"#5ff7ff":null);continue}}
       var kind=p.k===2?"missile":"bolt";
-      var HL=humL(),hh2=null;for(j=0;j<HL.length;j++){if(HL[j].id!==p.o&&Math.abs(p.x-HL[j].x)<58&&Math.abs(p.y-HL[j].y+4)<34){hh2=HL[j];break}}
+      var HL=humL(),hh2=null;for(j=0;j<HL.length;j++){if(HL[j].id!==p.o&&!isCloaked(HL[j].id)&&Math.abs(p.x-HL[j].x)<58&&Math.abs(p.y-HL[j].y+4)<34){hh2=HL[j];break}}
       if(hh2){zap(hh2.id,kind,p.o);p.dead=1;boom(p.x,p.y,p.k===2);continue}
-      for(j=0;j<AI.length;j++){a=AI[j];if(j===p.o||a.fin||a.dead>0)continue;
+      for(j=0;j<AI.length;j++){a=AI[j];if(j===p.o||a.fin||a.dead>0||isCloaked(j))continue;
         if(Math.abs(p.x-a.x)<56&&Math.abs(p.y-(a.y-6))<34){zap(j,kind,p.o);p.dead=1;boom(p.x,p.y,p.k===2);break}}
     }
     for(i=0;i<PR.length;i++){p=PR[i];if(p.dead)continue;   /* projectiles destroy each other */
@@ -2524,9 +2936,12 @@ function updLead(){var m=0,hs=humX();for(var hi=0;hi<hs.length;hi++)m=Math.max(m
 function catchUp(x){var g=leadX-x;return g>1500?Math.min(1.06,1+(g-1500)/20000):1}
 /* a wrecked rival comes back a little behind where it blew up, on flat track (never inside a loop) */
 function aiRespawn(a){
-  var x=Math.max(START_X,a.x-180);
-  for(var i=0;i<LOOPS.length;i++){var L=LOOPS[i];if(a.lp===i||Math.abs(x-L.x)<L.r+80)x=L.x-L.r-120}
-  a.lp=-1;a.th=0;a.x=x;a.y=groundY(x)-AOFF;a.vx=0;a.vy=0;a.a=0;a.hp=a.hpMax;a.dead=0;dvCrash(a.dv);
+  /* same rules as the player: flat, loop-free spot with a run-up; wrecking again within 6s steps further back each time */
+  a.rsN=(a.rsT!==undefined&&clock-a.rsT<6)?(a.rsN|0)+1:0;a.rsT=clock;
+  var x=Math.max(START_X,a.x-180-a.rsN*400);
+  while(x>START_X&&!okSpot(x))x-=40;
+  if(x<=START_X)x=START_X;
+  a.lp=-1;a.th=0;a.x=x;a.y=groundY(x)-AOFF;a.vx=180;a.vy=0;a.a=0;a.hp=a.hpMax;a.dead=0;dvCrash(a.dv);
 }
 function myPos(){var n=1;AI.forEach(function(a){if(finished?(a.fin&&a.t<ME.t):(a.fin||a.x>car.x))n++});return n}
 var dotsEl=document.getElementById("dots");
@@ -2540,7 +2955,7 @@ var menuOv=$("menu"),pauseOv=$("pause"),resOv=$("results"),selOv=$("select");
 function updChips(){$("chips").innerHTML=AI.map(function(a){return '<span><b style="background:'+a.col+'"></b>'+a.name+'</span>'}).join("")}updChips();
 /* ---- car selection ---- */
 function stat(t,i,k){return 1+(CARTY[t].s[i]-3)*k}
-function applyCar(){PT=stat(carTy,0,.06);PA=stat(carTy,1,.08);PG=stat(carTy,2,.08);PB=stat(carTy,3,.1)}
+function applyCar(){PT=stat(carTy,0,.06);PA=stat(carTy,1,.08);PG=stat(carTy,2,.08)*(CARTY[carTy].gm||1);PB=stat(carTy,3,.1)}
 var cardsEl=$("cards"),SL=["Speed","Accel","Grip","Boost"];
 function markCard(){var sc=selP===2?selCar2:selCar1;Array.prototype.forEach.call(cardsEl.children,function(el,i){el.classList.toggle("sel",i===sc)})}
 function openSelect(){paused=false;selP=0;restart();if(GK==="split"){openDuo();return}ME1.col=CARTY[carTy].pal[1];markCard();selTitle();setMode("select")}
@@ -2657,13 +3072,13 @@ function PID(){return cp===1?"p2":"me"}
 function curPal(){return myPal||CARTY[carTy].pal}
 function saveP(i){
   PSN[i]={car:car,spin:spin,airT:airT,airAng:airAng,wasAir:wasAir,flips:flips,stuckT:stuckT,loopsDone:loopsDone,boostT:boostT,boostCd:boostCd,padT:padT,
-    safe:safe,safeT:safeT,shieldOn:shieldOn,gripT:gripT,hp:hp,hpMax:hpMax,hpCalm:hpCalm,wreckT:wreckT,DM_ME:DM_ME,DV_ME:DV_ME,empT:empT,oilT:oilT,cloakT:cloakT,gravT:gravT,wpn:wpn,
+    safe:safe,safeT:safeT,SH:SH,rsT:rsT,rsN:rsN,shieldOn:shieldOn,gripT:gripT,hp:hp,hpMax:hpMax,hpCalm:hpCalm,wreckT:wreckT,DM_ME:DM_ME,DV_ME:DV_ME,empT:empT,oilT:oilT,cloakT:cloakT,gravT:gravT,wpn:wpn,
     LS:LS.slice(),carTy:carTy,PT:PT,PA:PA,PG:PG,PB:PB,camX:camX,camY:camY,zoom:zoom,finished:finished,ME:ME,prevBoost:prevBoost,PN:PN,myPal:myPal,zoneIdx:zoneIdx};
 }
 function loadP(i){
   var p=PSN[i],k;if(!p)return;cp=i;
   car=p.car;spin=p.spin;airT=p.airT;airAng=p.airAng;wasAir=p.wasAir;flips=p.flips;stuckT=p.stuckT;loopsDone=p.loopsDone;
-  boostT=p.boostT;boostCd=p.boostCd;padT=p.padT;safe=p.safe;safeT=p.safeT;shieldOn=p.shieldOn;gripT=p.gripT;
+  boostT=p.boostT;boostCd=p.boostCd;padT=p.padT;safe=p.safe;safeT=p.safeT;SH=p.SH||[];rsT=p.rsT===undefined?-99:p.rsT;rsN=p.rsN|0;shieldOn=p.shieldOn;gripT=p.gripT;
   hp=p.hp;hpMax=p.hpMax;hpCalm=p.hpCalm;wreckT=p.wreckT;DM_ME=p.DM_ME;DV_ME=p.DV_ME;empT=p.empT;oilT=p.oilT;cloakT=p.cloakT||0;gravT=p.gravT||0;wpn=p.wpn;
   for(k=0;k<LS.length;k++)LS[k]=p.LS[k];
   carTy=p.carTy;PT=p.PT;PA=p.PA;PG=p.PG;PB=p.PB;camX=p.camX;camY=p.camY;zoom=p.zoom;finished=p.finished;ME=p.ME;prevBoost=p.prevBoost;PN=p.PN;myPal=p.myPal;zoneIdx=p.zoneIdx;
@@ -2677,7 +3092,7 @@ function palD(p,i){return palOf(i,DCOL[p-1]!=null?DCOL[p-1]:carCol[i])}
 function palP(p){return palD(p,p===1?selCar1:selCar2)}
 function pal2(c1){var t=palP(2),a=hueOf(palP(1)),b=hueOf(t),d=Math.abs(a-b);d=Math.min(d,360-d);return (DCOL[1]!=null||d>=35)?t:mkPal((a+150)%360)}
 function gateIn(k){
-  if(mode==="done"||finished){k.gas=0;k.brake=1;k.boost=0;k.fireF=k.fireB=0}
+  if(mode==="done"||finished){k.gas=0;k.brake=0;k.boost=0;k.fireF=k.fireB=0}   /* no brake input: braking at a standstill reverses the car; step() slows it to a stop instead */
   else if(mode!=="race"||paused){k.gas=k.brake=k.back=k.fwd=k.boost=k.fireF=k.fireB=0}
 }
 function boostEdge(){
