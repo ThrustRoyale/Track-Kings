@@ -416,8 +416,8 @@ body[data-gk=split][data-m=select] .tb{display:none}
 <p>Two players on one screen.<br>Play with bots?</p>
 <div class="cnt yn"><button class="mb pri" id="botsY">YES<small>race 5 rivals</small></button><button class="mb pri" id="botsN">NO<small>just you two</small></button></div>
 <button class="mb" id="splitBack">BACK</button></div>
-<div class="pane hide" id="paneCls"><h2>SELECT CLASS</h2>
-<p>Which cars can race?<br>Applies to both players and the rivals.</p>
+<div class="pane hide" id="paneCls"><h2>CHOOSE CLASS</h2>
+<p id="clsP">Which cars can race?<br>Applies to both players and the rivals.</p>
 <div class="clsg" id="clsG"></div>
 <button class="mb" id="clsBack">BACK</button></div>
 <div class="pane hide" id="panePass"><h2>PASS &amp; PLAY</h2>
@@ -723,9 +723,9 @@ function contact(px,py,rad,thick){
 }
 
 /* ---------- Car ---------- */
-var G=1400,KS=120,CD=10,I=1000,R=13,KX=.83,VMAX=1600;
+var G=1400,KS=120,CD=10,I=1000,R=13,KX=.83,VMAX=1500;
 var MU={track:1.5,ramp:1.5,loop:1.7};
-var LOOPB=1.2,AIRB=.5,LANDK=160,FLIPB=1.6,BDUR=1.5,BCD=4,BF=1700,BMAX=1800,PDUR=.55,PF=3000,PMAX=2100;
+var LOOPB=1.2,AIRB=.5,LANDK=160,FLIPB=1.6,BDUR=1.5,BCD=4,BF=1700,BMAX=1750,PDUR=.55,PF=3000,PMAX=2050;
 var WH=[{ox:-32,oy:14},{ox:32,oy:14}];
 var BP=[{ox:-48,oy:-8},{ox:48,oy:-8},{ox:-42,oy:-18},{ox:-30,oy:-22.5},{ox:-8,oy:-23.5},{ox:12,oy:-22},{ox:22,oy:-16.5},{ox:-48,oy:16},{ox:48,oy:16}];  /* body + roofline, matches the drawn shape */
 var FD=1/60;   /* smoothed frame time: caps visible wheel spin so rims never alias into looking slow or backwards */
@@ -1383,6 +1383,7 @@ var CARTY=[
   {n:"Crawler",cl:"B",pal:["hsl(48,100%,66%)","hsl(44,96%,52%)","hsl(40,90%,32%)","hsla(38,90%,14%,.7)"],sx:1,sy:1,s:[2,3,5,3],hp:5,d:"Lifted yellow open-top 4x4 on monster tyres: huge grip and a tough 5-bar frame, but a low top speed."},
   {n:"Glider",cl:"S",pal:["hsl(210,14%,94%)","hsl(212,10%,76%)","hsl(214,10%,46%)","hsla(214,16%,22%,.7)"],sx:1,sy:1,s:[5,4,2,5],hp:3,d:"Silver canopy trike on one fat front tyre with cyan LED eyes: blistering top speed and a huge boost, but twitchy grip and light armour."}
 ];
+var CLSF={S:1,A:.96,B:.92,C:.88,D:.84},SPDA=.97;
 /* ---------- DRIVERS: each one brings a perk. Perk keys: hp (+health bars), top / acc / grip / boost (stat multipliers),
    bcd (boost cooldown multiplier), stunt (stunt boost refill multiplier), shield (start with one), wpn (start with a random weapon).
    The chosen driver applies to the player in Quick Race and Career. ---------- */
@@ -4209,7 +4210,7 @@ var PAL0=["#ffa857","#f46c12","#b94306","rgba(150,50,0,.7)"];
 var ME={col:CARTY[0].pal[1],t:0},AI=[],carTy=0,PT=1,PA=1,PG=1,PB=1,AOFF=28,RT=0,mode="menu",paused=false,countT=3,newBest=false;
 function initAI(){
   /* every car type appears at most twice among the 6 racers */
-  var pool=[],i,j,t,fc=GK==="split"&&SPCLS;
+  var pool=[],i,j,t,fc=SPCLS;
   if(fc){var base=[];for(i=0;i<CARTY.length;i++)if(CARTY[i].cl===fc)base.push(i);while(pool.length<12)base.forEach(function(b){pool.push(b)})}
   else for(i=0;i<CARTY.length;i++)pool.push(i,i);
   pool.splice(pool.indexOf(carTy),1);
@@ -4222,7 +4223,7 @@ function initAI(){
   if(CH&&CH.on&&GK==="split"){if(CH.bn){nm=CH.bn.slice();hs=CH.bh.slice()}else{CH.bn=nm.slice(0,ROS.length);CH.bh=hs.slice()}}   /* championship: the bots keep their names and colours so their points add up */
   var hsMine=(GK==="single"&&DRIVERS[DRV]&&DRIVERS[DRV].hs)||0,hsL=[0,1,2,3,4,5,6,7,8,9].filter(function(v){return v!==hsMine});
   for(i=hsL.length-1;i>0;i--){j=Math.floor(Math.random()*(i+1));t=hsL[i];hsL[i]=hsL[j];hsL[j]=t}
-  AI=ROS.map(function(r,i){var x=START_X,pl=mkPal(Math.round(hs[i]));return {ty:pool[i+1],name:nm[i],pal:pl,col:pl[1],vmax:r*(1+.01*(CARTY[pool[i+1]].s[0]-3)),   /* rivals: only a tiny flavour from top speed, so every car type races at the same level */x:x,y:groundY(x)-AOFF,vx:0,vy:0,a:0,spin:0,pad:0,nitro:0,grip:0,shield:false,stun:0,hz:-1,fin:false,t:0,lp:-1,th:0,wpn:-1,wt:0,emp:0,oil:0,cloak:0,grav:0,hit:0,hitD:1,hpMax:CARTY[pool[i+1]].hp,hp:CARTY[pool[i+1]].hp,calm:0,dv:mkDv(Math.floor(Math.random()*6),hsL[i%hsL.length],Math.floor(Math.random()*7))}});if((GK==="split"||GK==="pass")&&!BOTS)AI=[];if(typeof updChips==="function")updChips()}
+  AI=ROS.map(function(r,i){var x=START_X,pl=mkPal(Math.round(hs[i]));return {ty:pool[i+1],name:nm[i],pal:pl,col:pl[1],vmax:r*SPDA*CLSF[CARTY[pool[i+1]].cl]*(1+.01*(CARTY[pool[i+1]].s[0]-3)),   /* rivals: only a tiny flavour from top speed, so every car type races at the same level */x:x,y:groundY(x)-AOFF,vx:0,vy:0,a:0,spin:0,pad:0,nitro:0,grip:0,shield:false,stun:0,hz:-1,fin:false,t:0,lp:-1,th:0,wpn:-1,wt:0,emp:0,oil:0,cloak:0,grav:0,hit:0,hitD:1,hpMax:CARTY[pool[i+1]].hp,hp:CARTY[pool[i+1]].hp,calm:0,dv:mkDv(Math.floor(Math.random()*6),hsL[i%hsL.length],Math.floor(Math.random()*7))}});if((GK==="split"||GK==="pass")&&!BOTS)AI=[];if(typeof updChips==="function")updChips()}
 function updAI(d){
   if(mode!=="race"&&mode!=="done")return;
   RT+=d;
@@ -4233,8 +4234,8 @@ function updAI(d){
     var tv=a.vmax*(1+.05*Math.sin(clock*.7+k*2.3))*catchUp(a.x);
     if(a.lp<0)tv*=1-(a.grip>0?.15:.3)*Math.max(0,-(groundY(a.x+20)-groundY(a.x))/20);
     for(q=0;q<PADS.length;q++)if(a.x>PADS[q][0]&&a.x<PADS[q][1])a.pad=.5;
-    if(a.pad>0){a.pad-=d;tv+=450}
-    if(a.nitro>0){a.nitro-=d;tv+=300}
+    if(a.pad>0){a.pad-=d;tv+=450*SPDA}
+    if(a.nitro>0){a.nitro-=d;tv+=300*SPDA}
     var rate=a.nitro>0?2:.9;if(a.grip>0){a.grip-=d;rate*=1.2}
     if(a.emp>0){a.emp-=d;tv*=.42;a.nitro=0}
     if(a.oil>0){a.oil-=d;tv*=.5;rate=Math.max(rate,1.6)}
@@ -4612,7 +4613,7 @@ addEventListener("keydown",function(e){if(mode!=="map"||e.repeat)return;if(e.cod
 function updChips(){$("chips").innerHTML=AI.map(function(a){return '<span><b style="background:'+a.col+'"></b>'+a.name+'</span>'}).join("")}updChips();
 /* ---- car selection ---- */
 function stat(t,i,k){return 1+(CARTY[t].s[i]-3)*k}
-function applyCar(){PT=stat(carTy,0,.06)*(DPK.top||1);PA=stat(carTy,1,.08)*(DPK.acc||1);PG=stat(carTy,2,.08)*(CARTY[carTy].gm||1)*(DPK.grip||1);PB=stat(carTy,3,.1)*(DPK.boost||1)}
+function applyCar(){PT=stat(carTy,0,.06)*CLSF[CARTY[carTy].cl]*(DPK.top||1);PA=stat(carTy,1,.08)*(DPK.acc||1);PG=stat(carTy,2,.08)*(CARTY[carTy].gm||1)*(DPK.grip||1);PB=stat(carTy,3,.1)*(DPK.boost||1)}
 var cardsEl=$("cards"),SL=["Speed","Accel","Grip","Boost"];
 /* ---- car classes: S fastest/most exotic down to D slow & sturdy ---- */
 var CLS={S:{n:"SUPER",k:"#ffcf3d",d:"Exotic top-tier machines"},A:{n:"SPORT",k:"#ff5a5f",d:"Quick, light performance cars"},B:{n:"PRO",k:"#b77bff",d:"Balanced, capable all-rounders"},C:{n:"STREET",k:"#4fb3ff",d:"Nimble everyday & classic cars"},D:{n:"HEAVY",k:"#5fd38a",d:"Slow but sturdy workhorses"}},CLK=["S","A","B","C","D"],curCl="S";
@@ -4627,7 +4628,7 @@ function showClass(k){curCl=k;
 function markCls(){var sc=selP===2?selCar2:selCar1;Array.prototype.forEach.call(cclsEl.children,function(b){b.classList.toggle("has",CARTY[sc]&&CARTY[sc].cl===b.dataset.k)})}
 cclsEl.onclick=function(e){var b=e.target.closest(".cc");if(b)showClass(b.dataset.k)};
 function markCard(){var sc=selP===2?selCar2:selCar1;Array.prototype.forEach.call(cardsEl.children,function(el,i){el.classList.toggle("sel",i===sc)});markCls()}
-function openSelect(){paused=false;selP=0;restart();if(GK==="split"){openDuo();return}ME1.col=CARTY[carTy].pal[1];markCard();var sc0=selP===2?selCar2:selCar1;showClass(CARTY[sc0]?CARTY[sc0].cl:"S");selTitle();setMode("select")}
+function openSelect(){paused=false;selP=0;if(SPCLS&&GK!=="split"&&CARTY[carTy].cl!==SPCLS){for(var q=0;q<CARTY.length;q++)if(CARTY[q].cl===SPCLS){selCar1=carTy=q;break}}restart();if(GK==="split"){openDuo();return}ME1.col=CARTY[carTy].pal[1];markCard();var sc0=selP===2?selCar2:selCar1;showClass(CARTY[sc0]?CARTY[sc0].cl:"S");Array.prototype.forEach.call(cclsEl.children,function(b){b.style.display=(!SPCLS||b.dataset.k===SPCLS||GK==="split")?"":"none"});selTitle();setMode("select")}
 cardsEl.innerHTML=CARTY.map(function(t,i){
   return '<div class="card" data-i="'+i+'" style="--k:'+CLS[t.cl].k+'"><span class="cbadge">'+t.cl+'</span><canvas width="280" height="140"></canvas><button class="hex" aria-label="Change '+t.n+' colour"></button><div class="cpop" role="listbox" aria-label="'+t.n+' colours"></div><h3>'+t.n+'</h3><p>'+t.d+'</p>'+
     SL.map(function(l,k){return '<div class="stat"><span>'+l+'</span><i><u style="width:'+t.s[k]*20+'%"></u></i></div>'}).join("")+
@@ -4788,7 +4789,7 @@ $("crReset").onclick=function(){
   clearTimeout(crRT);crRT=0;CR=crNew();crSave();crPane();
 };
 crSub();
-$("startBtn").onclick=function(){CRon=false;setKind("single");openMaps(openSelect)};$("goBtn").onclick=onGo;$("backBtn").onclick=onBack;$("carBtn").onclick=openSelect;$("pauseBtn").onclick=togglePause;$("resumeBtn").onclick=function(){setPaused(false)};
+$("startBtn").onclick=function(){CRon=false;setKind("single");CLF="quick";$("clsP").innerHTML="Which cars can race?<br>You and the rivals will only use cars from this class.";showPane("Cls")};$("goBtn").onclick=onGo;$("backBtn").onclick=onBack;$("carBtn").onclick=openSelect;$("pauseBtn").onclick=togglePause;$("resumeBtn").onclick=function(){setPaused(false)};
 $("restartBtn").onclick=startRace;$("menuBtn").onclick=toMenu;$("againBtn").onclick=onAgain;$("menuBtn2").onclick=toMenu;
 document.addEventListener("visibilitychange",function(){if(document.hidden)setPaused(true)});
 if(!/iPad|iPhone|iPod/.test(navigator.userAgent)&&!(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1))addEventListener("blur",function(){setPaused(true)});
@@ -5156,23 +5157,23 @@ Array.prototype.forEach.call(document.querySelectorAll("#chTy button"),function(
   Array.prototype.forEach.call(g.children,function(b,i,all){b.onclick=function(){CHC=b.dataset.c;Array.prototype.forEach.call(all,function(o){o.classList.toggle("sel",o===b)})}});
 })();
 $("chGo").onclick=function(){goChamp(SPB)};
-var SPCLS=null,SPB=true;   /* split-screen class filter: null = any class */
-function clsOk(i){return GK!=="split"||!SPCLS||CARTY[i].cl===SPCLS}
+var SPCLS=null,SPB=true,CLF="split";   /* split-screen class filter: null = any class */
+function clsOk(i){return !SPCLS||CARTY[i].cl===SPCLS}
 function goSplit(b,c){
   BOTS=b;SPCLS=c||null;setKind("split");
   if(SPCLS){var l=[],i;for(i=0;i<CARTY.length;i++)if(CARTY[i].cl===SPCLS)l.push(i);
     if(l.indexOf(selCar1)<0)selCar1=l[0];if(l.indexOf(selCar2)<0||(selCar2===selCar1&&l.length>1))selCar2=l[l[0]===selCar1&&l.length>1?1:0];
     carTy=selCar1;ME1.col=CARTY[carTy].pal[1]}
   openMaps(openSelect)}
-$("botsY").onclick=function(){SPB=true;showPane("Cls")};$("botsN").onclick=function(){SPB=false;showPane("Cls")};
+$("botsY").onclick=function(){SPB=true;CLF="split";$("clsP").innerHTML="Which cars can race?<br>Applies to both players and the rivals.";showPane("Cls")};$("botsN").onclick=function(){SPB=false;CLF="split";$("clsP").innerHTML="Which cars can race?<br>Applies to both players and the rivals.";showPane("Cls")};
 $("splitBack").onclick=function(){showPane("SMode")};
-$("clsBack").onclick=function(){showPane(CHM?"Ch":"Split")};
+$("clsBack").onclick=function(){showPane(CLF==="quick"?"Main":CHM?"Ch":"Split")};
 (function(){
   var g=$("clsG"),h='<button class="mb pri any" data-c="">ANY CLASS<small>all '+CARTY.length+' cars</small></button>';
   CLK.forEach(function(k){var n=CARTY.filter(function(t){return t.cl===k}).length;
     h+='<button class="mb" data-c="'+k+'" style="--ck:'+CLS[k].k+'">CLASS '+k+'<small>'+CLS[k].n+' · '+n+' cars</small></button>'});
   g.innerHTML=h;
-  Array.prototype.forEach.call(g.children,function(b){b.onclick=function(){goSplit(SPB,b.dataset.c)}});
+  Array.prototype.forEach.call(g.children,function(b){b.onclick=function(){if(CLF==="quick"){SPCLS=b.dataset.c||null;openMaps(openSelect)}else goSplit(SPB,b.dataset.c)}});
 })();
 $("passBtn").onclick=function(){showPane("Pass")};
 $("passBack").onclick=function(){showPane("Main")};
